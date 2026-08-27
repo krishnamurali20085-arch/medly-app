@@ -18,7 +18,7 @@ class DatabaseService {
     final path = join(dbPath, 'medly.db');
     return await openDatabase(
       path,
-      version: 6,
+      version: 7,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -94,6 +94,7 @@ class DatabaseService {
             patient_name TEXT,
             blood_group TEXT,
             allergies TEXT,
+            diseases TEXT,
             weight TEXT,
             height TEXT,
             created_at TEXT NOT NULL
@@ -102,6 +103,12 @@ class DatabaseService {
       } catch (_) {}
     }
     if (oldVersion < 6) {
+      // Add diseases column to accounts
+      try {
+        await db.execute('ALTER TABLE accounts ADD COLUMN diseases TEXT DEFAULT ""');
+      } catch (_) {}
+    }
+    if (oldVersion < 7) {
       // Add steps column to health_snapshots
       try {
         await db.execute('ALTER TABLE health_snapshots ADD COLUMN steps INTEGER DEFAULT 0');
@@ -232,15 +239,16 @@ class DatabaseService {
         name TEXT NOT NULL,
         password TEXT NOT NULL,
         role TEXT DEFAULT 'User',
-        patient_name TEXT,
-        blood_group TEXT,
+        patient_name TEXT,        blood_group TEXT,
         allergies TEXT,
+        diseases TEXT,
         weight TEXT,
         height TEXT,
         created_at TEXT NOT NULL
       )
     ''');
   }
+
 
   // ---- Account persistence (local SQLite login) ----
   static Future<void> saveAccount({
@@ -251,6 +259,7 @@ class DatabaseService {
     String? patientName,
     String? bloodGroup,
     String? allergies,
+    String? diseases,
     String? weight,
     String? height,
   }) async {
@@ -264,6 +273,7 @@ class DatabaseService {
         'patient_name': patientName,
         'blood_group': bloodGroup,
         'allergies': allergies,
+        'diseases': diseases,
         'weight': weight,
         'height': height,
         'created_at': DateTime.now().toIso8601String(),

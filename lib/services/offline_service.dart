@@ -25,6 +25,7 @@ class OfflineService {
     required String patientName,
     required String bloodGroup,
     required String allergies,
+    required String diseases,
     required String weight,
     required String height,
     required List<Map<String, String>> contacts,
@@ -35,6 +36,7 @@ class OfflineService {
     await prefs.setString('offline_patient_name', patientName);
     await prefs.setString('offline_blood_group', bloodGroup);
     await prefs.setString('offline_allergies', allergies);
+    await prefs.setString('offline_diseases', diseases);
     await prefs.setString('offline_weight', weight);
     await prefs.setString('offline_height', height);
     await prefs.setStringList(
@@ -63,6 +65,7 @@ class OfflineService {
       'name': prefs.getString('offline_patient_name') ?? 'Patient',
       'bloodGroup': prefs.getString('offline_blood_group') ?? 'Unknown',
       'allergies': prefs.getString('offline_allergies') ?? 'None',
+      'diseases': prefs.getString('offline_diseases') ?? 'None',
       'weight': prefs.getString('offline_weight') ?? '',
       'height': prefs.getString('offline_height') ?? '',
     };

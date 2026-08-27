@@ -120,6 +120,7 @@ class _MedlyAppState extends State<MedlyApp> {
                 patients: [PatientProfile(name: data['patientName'] ?? 'Patient')],
                 bloodGroup: data['bloodGroup'],
                 allergies: data['allergies'],
+                diseases: data['diseases'],
                 weight: data['weight'],
                 height: data['height'],
               );
@@ -142,6 +143,7 @@ class _MedlyAppState extends State<MedlyApp> {
               patients: [PatientProfile(name: data['patientName'] ?? 'Patient')],
               bloodGroup: data['bloodGroup'],
               allergies: data['allergies'],
+              diseases: data['diseases'],
               weight: data['weight'],
               height: data['height'],
             );
@@ -226,6 +228,7 @@ class _MedlyAppState extends State<MedlyApp> {
               patients: [PatientProfile(name: data['patientName'] ?? 'Patient')],
               bloodGroup: data['bloodGroup'],
               allergies: data['allergies'],
+              diseases: data['diseases'],
               weight: data['weight'],
               height: data['height'],
             );
@@ -378,6 +381,7 @@ class _MedlyAppState extends State<MedlyApp> {
   void _handleOnboardingComplete(
     String bloodGroup,
     String allergies,
+    String diseases,
     String weight,
     String height,
   ) {
@@ -389,6 +393,7 @@ class _MedlyAppState extends State<MedlyApp> {
       patients: _currentAccount.patients,
       bloodGroup: bloodGroup,
       allergies: allergies,
+      diseases: diseases,
       weight: weight,
       height: height,
     );
@@ -402,6 +407,7 @@ class _MedlyAppState extends State<MedlyApp> {
     DatabaseService.updateAccount(updated.email, {
       'blood_group': updated.bloodGroup,
       'allergies': updated.allergies,
+      'diseases': updated.diseases,
       'weight': updated.weight,
       'height': updated.height,
     });
@@ -419,6 +425,7 @@ class _MedlyAppState extends State<MedlyApp> {
         patientName: _currentAccount.patients.isNotEmpty ? _currentAccount.patients.first.name : 'Patient',
         bloodGroup: _currentAccount.bloodGroup ?? '',
         allergies: _currentAccount.allergies ?? '',
+        diseases: _currentAccount.diseases ?? '',
         weight: _currentAccount.weight ?? '',
         height: _currentAccount.height ?? '',
         contacts: contacts,
@@ -433,6 +440,7 @@ class _MedlyAppState extends State<MedlyApp> {
         await fs.db.collection('users').doc(profile.email).update({
           'bloodGroup': profile.bloodGroup,
           'allergies': profile.allergies,
+      'diseases': profile.diseases,
           'weight': profile.weight,
           'height': profile.height,
         });
@@ -443,6 +451,7 @@ class _MedlyAppState extends State<MedlyApp> {
       'email': profile.email.toLowerCase(),
       'blood_group': profile.bloodGroup,
       'allergies': profile.allergies,
+      'diseases': profile.diseases,
       'weight': profile.weight,
       'height': profile.height,
     }, onConflict: 'email');
@@ -510,10 +519,11 @@ class _MedlyAppState extends State<MedlyApp> {
           onSignOut: _handleSignOut,
           bloodGroup: _currentAccount.bloodGroup,
           allergies: _currentAccount.allergies,
+          diseases: _currentAccount.diseases,
           weight: _currentAccount.weight,
           height: _currentAccount.height,
-          onProfileUpdate: (bg, al, w, h) {
-            _handleOnboardingComplete(bg, al, w, h);
+          onProfileUpdate: (bg, al, dis, w, h) {
+            _handleOnboardingComplete(bg, al, dis, w, h);
           },
         ),
       );
@@ -1305,7 +1315,7 @@ class OnboardingScreen extends StatefulWidget {
     required this.onThemeChanged,
   });
 
-  final void Function(String bloodGroup, String allergies, String weight, String height) onComplete;
+  final void Function(String bloodGroup, String allergies, String diseases, String weight, String height) onComplete;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode> onThemeChanged;
 
@@ -1316,6 +1326,7 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   String _selectedBloodGroup = 'A+';
   final _allergiesController = TextEditingController();
+  final _diseasesController = TextEditingController();
   final _weightController = TextEditingController();
   final _heightController = TextEditingController();
 
@@ -1326,6 +1337,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void dispose() {
     _allergiesController.dispose();
+    _diseasesController.dispose();
     _weightController.dispose();
     _heightController.dispose();
     super.dispose();
@@ -1341,6 +1353,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     widget.onComplete(
       _selectedBloodGroup,
       _allergiesController.text.trim(),
+      _diseasesController.text.trim(),
       _weightController.text.trim(),
       _heightController.text.trim(),
     );
@@ -1424,6 +1437,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                   const SizedBox(height: 16),
                   TextField(
+                    controller: _diseasesController,
+                    decoration: const InputDecoration(
+                      labelText: 'Diseases / Conditions (comma-separated)',
+                      hintText: 'e.g. Diabetes, Asthma, Hypertension',
+                      prefixIcon: Icon(Icons.sick_rounded),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
                     controller: _weightController,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
@@ -1485,6 +1508,7 @@ class MedlyHomePage extends StatefulWidget {
     required this.onSignOut,
     this.bloodGroup,
     this.allergies,
+    this.diseases,
     this.weight,
     this.height,
     this.onProfileUpdate,
@@ -1500,9 +1524,10 @@ class MedlyHomePage extends StatefulWidget {
   final VoidCallback onSignOut;
   final String? bloodGroup;
   final String? allergies;
+  final String? diseases;
   final String? weight;
   final String? height;
-  final void Function(String, String, String, String)? onProfileUpdate;
+  final void Function(String, String, String, String, String)? onProfileUpdate;
 
   @override
   State<MedlyHomePage> createState() => _MedlyHomePageState();
@@ -2005,6 +2030,7 @@ out center 25;
       patientName: _selectedPatientName,
       bloodGroup: widget.bloodGroup ?? 'Unknown',
       allergies: widget.allergies ?? 'None',
+      diseases: widget.diseases ?? 'None',
       weight: widget.weight ?? '',
       height: widget.height ?? '',
       contacts: contacts,
@@ -2102,7 +2128,8 @@ out center 25;
     final sosMessageBody = 'EMERGENCY SOS from Medly!\n'
         '${_selectedPatientName} is in danger!\n'
         'Blood group: ${patientInfo["bloodGroup"] ?? "Unknown"}\n'
-        'Allergies: ${patientInfo["allergies"] ?? "None"}';
+        'Allergies: ${patientInfo["allergies"] ?? "None"}\n'
+        'Diseases: ${patientInfo["diseases"] ?? "None"}';
     final locationPart = sosLocation
         ? '\nLocation: https://maps.google.com/?q=${_lastKnownLatitude},${_lastKnownLongitude}'
         : '';
@@ -2225,6 +2252,7 @@ out center 25;
         '${_selectedPatientName} needs urgent help!\n'
         'Blood group: ${patientInfo["bloodGroup"] ?? "Unknown"}\n'
         'Allergies: ${patientInfo["allergies"] ?? "None"}\n'
+        'Diseases: ${patientInfo["diseases"] ?? "None"}\n'
         'Weight: ${patientInfo["weight"] ?? "Unknown"} kg'
         'Height: ${patientInfo["height"] ?? "Unknown"} cm';
     final locationPart = hasLocation
@@ -2880,6 +2908,7 @@ out center 25;
             children: [
               _infoPill(_t('Blood group'), widget.bloodGroup ?? _t('Not set')),
               _infoPill(_t('Allergies'), (widget.allergies?.isNotEmpty ?? false) ? widget.allergies! : _t('None')),
+              _infoPill(_t('Diseases'), (widget.diseases?.isNotEmpty ?? false) ? widget.diseases! : _t('None')),
               _infoPill(_t('Weight'), (widget.weight?.isNotEmpty ?? false) ? '${widget.weight} kg' : _t('Not set')),
               _infoPill(_t('Height'), (widget.height?.isNotEmpty ?? false) ? '${widget.height} cm' : _t('Not set')),
             ],
@@ -3212,6 +3241,13 @@ out center 25;
             title: Text(_t('Allergies')),
             subtitle: Text(
               (widget.allergies?.isNotEmpty ?? false) ? widget.allergies! : 'No known allergies',
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.sick_rounded),
+            title: Text(_t('Diseases')),
+            subtitle: Text(
+              (widget.diseases?.isNotEmpty ?? false) ? widget.diseases! : 'No known diseases',
             ),
           ),
           const SizedBox(height: 18),
@@ -3605,6 +3641,7 @@ out center 25;
   void _showEditProfileDialog() {
     final bgController = TextEditingController(text: widget.bloodGroup ?? '');
     final allergiesController = TextEditingController(text: widget.allergies ?? '');
+    final diseasesController = TextEditingController(text: widget.diseases ?? '');
     final weightController = TextEditingController(text: widget.weight ?? '');
     final heightController = TextEditingController(text: widget.height ?? '');
 
@@ -3620,6 +3657,8 @@ out center 25;
               const SizedBox(height: 8),
               TextField(controller: allergiesController, decoration: const InputDecoration(labelText: 'Allergies')),
               const SizedBox(height: 8),
+              TextField(controller: diseasesController, decoration: const InputDecoration(labelText: 'Diseases / Conditions')),
+              const SizedBox(height: 8),
               TextField(controller: weightController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Weight (kg)')),
               const SizedBox(height: 8),
               TextField(controller: heightController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Height (cm)')),
@@ -3633,6 +3672,7 @@ out center 25;
               widget.onProfileUpdate?.call(
                 bgController.text.trim(),
                 allergiesController.text.trim(),
+                diseasesController.text.trim(),
                 weightController.text.trim(),
                 heightController.text.trim(),
               );
@@ -6052,6 +6092,7 @@ class CaregiverProfile {
   final List<PatientProfile> patients;
   final String? bloodGroup;
   final String? allergies;
+  final String? diseases;
   final String? weight;
   final String? height;
 
@@ -6063,6 +6104,7 @@ class CaregiverProfile {
     required this.patients,
     this.bloodGroup,
     this.allergies,
+    this.diseases,
     this.weight,
     this.height,
   });
