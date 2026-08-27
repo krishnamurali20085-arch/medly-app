@@ -3764,19 +3764,20 @@ out center 100;
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Medly', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('Medly', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
             Text(
-              '${widget.caregiverRole} • $_selectedPatientName',
-              style: TextStyle(fontSize: 12, color: isDark ? Colors.white70 : Colors.black54),
+              '${widget.caregiverRole} \u2022 ${_selectedPatientName.length > 12 ? _selectedPatientName.substring(0, 12) + '...' : _selectedPatientName}',
+              style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Colors.black54),
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
         actions: [
           // Language selector
           Padding(
-            padding: const EdgeInsets.only(right: 4),
+            padding: const EdgeInsets.only(right: 2),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: isDark ? Colors.white10 : Colors.black12,
                 borderRadius: BorderRadius.circular(12),
@@ -3787,7 +3788,7 @@ out center 100;
                   isDense: true,
                   dropdownColor: isDark ? const Color(0xFF1F2937) : Colors.white,
                   items: _languages
-                      .map((l) => DropdownMenuItem(value: l, child: Text(l, style: const TextStyle(fontSize: 12))))
+                      .map((l) => DropdownMenuItem(value: l, child: Text(l, style: const TextStyle(fontSize: 11))))
                       .toList(),
                   onChanged: (v) {
                     if (v != null) setState(() => _selectedLanguage = v);
@@ -3795,12 +3796,6 @@ out center 100;
                 ),
               ),
             ),
-          ),
-          // Voice input button
-          IconButton(
-            onPressed: _startGlobalVoiceInput,
-            icon: Icon(_isListening ? Icons.mic : Icons.mic_none_rounded, color: _isListening ? Colors.red : null),
-            tooltip: 'Voice input',
           ),
           // Live Map button
           IconButton(
