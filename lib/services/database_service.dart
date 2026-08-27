@@ -18,7 +18,7 @@ class DatabaseService {
     final path = join(dbPath, 'medly.db');
     return await openDatabase(
       path,
-      version: 7,
+      version: 8,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -112,6 +112,31 @@ class DatabaseService {
       // Add steps column to health_snapshots
       try {
         await db.execute('ALTER TABLE health_snapshots ADD COLUMN steps INTEGER DEFAULT 0');
+      } catch (_) {}
+    }
+    if (oldVersion < 8) {
+      // Exercise streak tables
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS exercise_completions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL,
+            exercise_name TEXT NOT NULL,
+            date_key TEXT NOT NULL,
+            completed INTEGER NOT NULL DEFAULT 0,
+            completed_at TEXT
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS exercise_streaks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL UNIQUE,
+            current_streak INTEGER NOT NULL DEFAULT 0,
+            longest_streak INTEGER NOT NULL DEFAULT 0,
+            last_completion_date TEXT,
+            total_badges INTEGER NOT NULL DEFAULT 0
+          )
+        ''');
       } catch (_) {}
     }
   }
@@ -319,6 +344,136 @@ class DatabaseService {
       print('[DB] loginLocal error: $e');
       return null;
     }
+  }
+
+  // ---- Exercise & Streak ----
+
+  static Future<void> saveExerciseCompletion({
+    required String email,
+    required String exerciseName,
+    required String dateKey,
+  }) async {
+    try {
+      final db = await database;
+      await db.insert('exercise_completions', {
+        'email': email.toLowerCase(),
+        'exercise_name': exerciseName,
+        'date_key': dateKey,
+        'completed': 1,
+        'completed_at': DateTime.now().toIso8601String(),
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      print('[DB] Exercise completed: $exerciseName on $dateKey');
+    } catch (e) {
+      print('[DB] saveExerciseCompletion error: $e');
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getExerciseCompletions(
+    String email, String dateKey,
+  ) async {
+    try {
+      final db = await database;
+      return await db.query(
+        'exercise_completions',
+        where: 'email = ? AND date_key = ?',
+        whereArgs: [email.toLowerCase(), dateKey],
+      );
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static Future<void> updateStreak({
+    required String email,
+    required String todayKey,
+  }) async {
+    try {
+      final db = await database;
+      final existing = await db.query(
+        'exercise_streaks',
+        where: 'email = ?',
+        whereArgs: [email.toLowerCase()],
+      );
+
+      if (existing.isEmpty) {
+        await db.insert('exercise_streaks', {
+          'email': email.toLowerCase(),
+          'current_streak': 1,
+          'longest_streak': 1,
+          'last_completion_date': todayKey,
+          'total_badges': 0,
+        });
+      } else {
+        final streak = existing.first;
+        final lastDate = streak['last_completion_date'] as String? ?? '';
+        int current = (streak['current_streak'] as int?) ?? 0;
+        int longest = (streak['longest_streak'] as int?) ?? 0;
+
+        if (lastDate == todayKey) {
+          // Already counted today
+          return;
+        }
+
+        // Check if yesterday was completed (consecutive)
+        final yesterday = DateTime.now().subtract(const Duration(days: 1));
+        final yesterdayKey = '${yesterday.year}-${yesterday.month}-${yesterday.day}';
+
+        if (lastDate == yesterdayKey) {
+          current += 1;
+        } else {
+          current = 1; // Reset streak
+        }
+
+        if (current > longest) longest = current;
+
+        await db.update(
+          'exercise_streaks',
+          {
+            'current_streak': current,
+            'longest_streak': longest,
+            'last_completion_date': todayKey,
+          },
+          where: 'email = ?',
+          whereArgs: [email.toLowerCase()],
+        );
+      }
+    } catch (e) {
+      print('[DB] updateStreak error: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>?> getStreak(String email) async {
+    try {
+      final db = await database;
+      final rows = await db.query(
+        'exercise_streaks',
+        where: 'email = ?',
+        whereArgs: [email.toLowerCase()],
+      );
+      return rows.isNotEmpty ? rows.first : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static Future<void> addBadge(String email) async {
+    try {
+      final db = await database;
+      final existing = await db.query(
+        'exercise_streaks',
+        where: 'email = ?',
+        whereArgs: [email.toLowerCase()],
+      );
+      if (existing.isNotEmpty) {
+        final current = (existing.first['total_badges'] as int?) ?? 0;
+        await db.update(
+          'exercise_streaks',
+          {'total_badges': current + 1},
+          where: 'email = ?',
+          whereArgs: [email.toLowerCase()],
+        );
+      }
+    } catch (_) {}
   }
 
   // ---- Access Control ----

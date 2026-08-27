@@ -26,6 +26,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'services/supabase_service.dart';
 import 'services/notification_service.dart';
 import 'services/offline_service.dart';
+import 'services/exercise_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -3407,7 +3408,202 @@ out center 25;
               ),
             ),
           ),
+
+        const SizedBox(height: 24),
+
+        // Daily Exercises
+        Text(_t('Daily Exercises'), style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 4),
+        Text(_t('Based on your conditions'), style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+        const SizedBox(height: 12),
+        _buildExerciseSection(),
+        const SizedBox(height: 16),
+        _buildStreakSection(),
+        const SizedBox(height: 16),
+        _buildBadgeCollection(),
       ],
+    );
+  }
+
+  Widget _buildStreakSection() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: DatabaseService.getStreak(widget.email),
+      builder: (ctx, snap) {
+        final streak = snap.data;
+        final current = streak?['current_streak'] ?? 0;
+        final longest = streak?['longest_streak'] ?? 0;
+        final badges = streak?['total_badges'] ?? 0;
+        final badge = ExerciseService.getBadgeForWeek(current);
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isDark
+                  ? [const Color(0xFF7C3AED), const Color(0xFF5B21B6)]
+                  : [const Color(0xFFEDE9FE), const Color(0xFFDDD6FE)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Row(
+            children: [
+              Text(badge['emoji'] ?? '⭐', style: const TextStyle(fontSize: 40)),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_t('Exercise Streak'), style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.purple.shade900)),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$current ${_t('day streak')} • $longest ${_t('best')}',
+                      style: TextStyle(color: isDark ? Colors.white70 : Colors.purple.shade700, fontSize: 13),
+                    ),
+                    Text(
+                      '$badges ${_t('badges earned')} • ${badge['name']}',
+                      style: TextStyle(color: isDark ? Colors.white60 : Colors.purple.shade600, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.purple.withValues(alpha: isDark ? 0.3 : 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$current🔥',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? Colors.white : Colors.purple.shade900),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBadgeCollection() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: DatabaseService.getStreak(widget.email),
+      builder: (ctx, snap) {
+        final badges = (snap.data?['total_badges'] ?? 0) as int;
+        final weeks = badges.clamp(0, 364);
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1F2937) : Colors.white,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text('🏷️', style: TextStyle(fontSize: 22)),
+                  const SizedBox(width: 8),
+                  Text(_t('Badge Collection'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const Spacer(),
+                  Text('$weeks/364', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (weeks == 0)
+                Text(_t('Complete exercises to earn badges!'), style: TextStyle(color: Colors.grey.shade500, fontSize: 13))
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: List.generate(weeks.clamp(0, 30), (i) {
+                    final badge = ExerciseService.getBadgeForWeek(i + 1);
+                    return Tooltip(
+                      message: 'Week ${i + 1}: ${badge['name']}',
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white10 : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Center(child: Text(badge['emoji'] ?? '⭐', style: const TextStyle(fontSize: 22))),
+                      ),
+                    );
+                  }),
+                ),
+              if (weeks > 30)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    '+${weeks - 30} more badges earned!',
+                    style: TextStyle(color: Colors.purple.shade400, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildExerciseSection() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final diseases = widget.diseases ?? '';
+    final exercises = ExerciseService.getExercisesForDiseases(diseases);
+    final todayKey = _todayDateKey;
+
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: DatabaseService.getExerciseCompletions(widget.email, todayKey),
+      builder: (ctx, snap) {
+        final completions = snap.data ?? [];
+        final completedNames = completions.map((c) => c['exercise_name'] as String).toSet();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: exercises.map((ex) {
+            final isDone = completedNames.contains(ex['name']);
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              color: isDone
+                  ? (isDark ? const Color(0xFF1A3A2A) : const Color(0xFFE8F5E9))
+                  : null,
+              child: ListTile(
+                leading: Text(ex['icon'] ?? '🏃', style: const TextStyle(fontSize: 28)),
+                title: Text(
+                  ex['name'] ?? '',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    decoration: isDone ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+                subtitle: Text('${ex['duration']} • ${ex['desc']}'),
+                trailing: isDone
+                    ? const Icon(Icons.check_circle, color: Colors.green, size: 28)
+                    : IconButton(
+                        icon: const Icon(Icons.check_circle_outline, size: 28),
+                        onPressed: () async {
+                          await DatabaseService.saveExerciseCompletion(
+                            email: widget.email,
+                            exerciseName: ex['name']!,
+                            dateKey: todayKey,
+                          );
+                          await DatabaseService.updateStreak(
+                            email: widget.email,
+                            todayKey: todayKey,
+                          );
+                          setState(() {});
+                        },
+                      ),
+              ),
+            );
+          }).toList(),
+        );
+      },
     );
   }
 
