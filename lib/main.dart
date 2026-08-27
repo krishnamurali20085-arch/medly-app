@@ -1439,8 +1439,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   TextField(
                     controller: _allergiesController,
                     decoration: const InputDecoration(
-                      labelText: 'Allergies (comma-separated)',
-                      hintText: 'e.g. Peanuts, Penicillin',
+                      labelText: 'Allergies (optional, comma-separated)',
+                      hintText: 'e.g. Peanuts, Penicillin (leave blank if none)',
                       prefixIcon: Icon(Icons.warning_amber_rounded),
                       border: OutlineInputBorder(),
                     ),
@@ -1896,7 +1896,7 @@ class _MedlyHomePageState extends State<MedlyHomePage>
       final lon = position.longitude;
       _lastKnownLatitude = lat;
       _lastKnownLongitude = lon;
-      final radius = 10000; // 10 km for better coverage
+      final radius = 15000; // 15 km radius for better coverage
 
       final query = '''
 [out:json][timeout:20];
@@ -1909,7 +1909,7 @@ class _MedlyHomePageState extends State<MedlyHomePage>
   way["amenity"="pharmacy"](around:$radius,$lat,$lon);
   relation["amenity"="hospital"](around:$radius,$lat,$lon);
 );
-out center 25;
+out center 100;
 ''';
 
       final response = await http.post(
@@ -2588,13 +2588,12 @@ out center 25;
   }
 
   Future<String> _generateAiGuidance(String symptoms) async {
-    // Try Gemini API first
+    // Gemini API (key bundled in app, not visible to users)
+    const geminiApiKey = 'AIzaSyDummyReplaceMe'; // Replace with real key
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final apiKey = prefs.getString('gemini_api_key') ?? '';
-      if (apiKey.isNotEmpty) {
+      if (geminiApiKey.isNotEmpty && !geminiApiKey.startsWith('AIzaSyDummy')) {
         final response = await http.post(
-          Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey'),
+          Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$geminiApiKey'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             'contents': [{
@@ -3078,70 +3077,37 @@ out center 25;
           ),
           const SizedBox(height: 20),
 
-          // Nearby care
-          Text(_t('Nearby healthcare services'), style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 12),
-          if (_loadingServices)
-            const Center(child: CircularProgressIndicator())
-          else if (_serviceList.isEmpty)
-            Column(
-              children: [
-                Text(_t('No nearby services found.')),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    setState(() => _loadingServices = true);
-                    _fetchNearbyServices();
-                  },
-                  icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('Retry', style: TextStyle(fontSize: 12)),
-                ),
-              ],
-            )
-          else
-            ..._serviceList.take(5).map(
-              (service) => Card(
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(
-                    service.type == 'Hospital'
-                        ? Icons.local_hospital_rounded
-                        : service.type == 'Pharmacy'
-                            ? Icons.local_pharmacy_rounded
-                            : Icons.emergency_rounded,
-                    color: Colors.red.shade700,
-                    size: 20,
-                  ),
-                  title: Text(service.name, overflow: TextOverflow.ellipsis, maxLines: 1, style: const TextStyle(fontSize: 13)),
-                  subtitle: Text('${service.type} • ${service.distance}', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
-                  trailing: IconButton(
-                    onPressed: () => _openMapForService(service),
-                    icon: const Icon(Icons.directions, size: 18),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),                  ),
-              ),
-            ),
+          // Nearby care - Map-based
+          Text(_t('Nearby Healthcare'), style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
-          // View on Map button
-          if (_serviceList.isNotEmpty)
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => ClinicMapPage(
-                        language: _selectedLanguage,
-                        initialServices: _serviceList,
-                      ),
+          Text(
+            'Find hospitals, pharmacies & clinics near you using your live location',
+            style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.black45),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ClinicMapPage(
+                      language: _selectedLanguage,
+                      initialServices: _serviceList,
                     ),
-                  );
-                },
-                icon: const Icon(Icons.map_rounded, size: 18),
-                label: const Text('View on Map', style: TextStyle(fontSize: 13)),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.map_rounded, size: 20),
+              label: const Text('Open Live Map — Find Hospitals & Pharmacies', style: TextStyle(fontSize: 13)),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                backgroundColor: Colors.red.shade700,
+                foregroundColor: Colors.white,
               ),
             ),
+          ),
+          const SizedBox(height: 8),
           const SizedBox(height: 20),
 
           // Screen time
@@ -3385,34 +3351,24 @@ out center 25;
         ),
         const SizedBox(height: 18),
 
-        // Nearby services
-        Text(_t('Nearby healthcare services'), style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 12),
-        if (_loadingServices)
-          const Center(child: CircularProgressIndicator())
-        else if (_serviceList.isEmpty)
-          Text(_t('No nearby services found.'))
-        else
-          ..._serviceList.map(
-            (service) => Card(
-              child: ListTile(
-                leading: Icon(
-                  service.type == 'Hospital'
-                      ? Icons.local_hospital_rounded
-                      : service.type == 'Pharmacy'
-                          ? Icons.local_pharmacy_rounded
-                          : Icons.emergency_rounded,
-                  color: Colors.red.shade700,
+        // Nearby care - Map button
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ClinicMapPage(
+                    language: _selectedLanguage,
+                    initialServices: _serviceList,
+                  ),
                 ),
-                title: Text(service.name),
-                subtitle: Text('${service.type} • ${service.distance}'),
-                trailing: IconButton(
-                  onPressed: () => _openMapForService(service),
-                  icon: const Icon(Icons.directions),
-                ),
-              ),
-            ),
+              );
+            },
+            icon: const Icon(Icons.map_rounded, size: 18),
+            label: const Text('Find Hospitals & Pharmacies Near You', style: TextStyle(fontSize: 13)),
           ),
+        ),
 
         const SizedBox(height: 24),
 
@@ -4571,48 +4527,13 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
             ],
             const SizedBox(height: 12),
             ListTile(
-              leading: const Icon(Icons.key_rounded),
-              title: const Text('AI API Key'),
-              subtitle: const Text('Configure Gemini API for AI assistant'),
-              onTap: () async {
-                final prefs = await SharedPreferences.getInstance();
-                final controller = TextEditingController(text: prefs.getString('gemini_api_key') ?? '');
-                final result = await showDialog<String>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Gemini API Key'),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Get a free API key from aistudio.google.com', style: TextStyle(fontSize: 12)),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: controller,
-                          decoration: const InputDecoration(
-                            labelText: 'API Key',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ],
-                    ),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-                      ElevatedButton(
-                        onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-                        child: const Text('Save'),
-                      ),
-                    ],
-                  ),
+              leading: const Icon(Icons.smart_toy_rounded),
+              title: const Text('AI Assistant'),
+              subtitle: const Text('Powered by Gemini AI (built-in)'),
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('AI is ready! Tap the robot icon on the Home tab to use it.')),
                 );
-                if (result != null) {
-                  await prefs.setString('gemini_api_key', result);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(result.isEmpty ? 'API key removed' : 'API key saved')),
-                    );
-                  }
-                }
               },
             ),
             const SizedBox(height: 12),
@@ -5903,7 +5824,7 @@ class _ClinicMapPageState extends State<ClinicMapPage> with SingleTickerProvider
         _loadingLocation = false;
       });
 
-      final radius = 10000; // 10 km
+      final radius = 15000; // 15 km radius
       final query = '''
 [out:json][timeout:20];
 (
@@ -5915,7 +5836,7 @@ class _ClinicMapPageState extends State<ClinicMapPage> with SingleTickerProvider
   way["amenity"="pharmacy"](around:$radius,$lat,$lon);
   relation["amenity"="hospital"](around:$radius,$lat,$lon);
 );
-out center 50;
+out center 100;
 ''';
 
       final response = await http.post(
