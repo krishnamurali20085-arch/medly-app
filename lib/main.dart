@@ -553,76 +553,316 @@ class SplashAnimation extends StatefulWidget {
 }
 
 class _SplashAnimationState extends State<SplashAnimation>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _opacityAnimation;
+    with TickerProviderStateMixin {
+  late AnimationController _mainController;
+  late AnimationController _pulseController;
+  late AnimationController _ringController;
+  late AnimationController _textController;
+  late AnimationController _particleController;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+
+    // Main logo animation (scale + fade)
+    _mainController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+
+    // Pulse glow behind logo
+    _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     );
-    _scaleAnimation = Tween<double>(begin: 0.3, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
+
+    // Expanding ring effect
+    _ringController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
     );
-    _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.5, curve: Curves.easeIn),
-      ),
+
+    // Text fade-in (delayed)
+    _textController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
     );
-    _controller.forward();
+
+    // Particles
+    _particleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    );
+
+    // Sequence: ring → logo → pulse → text → particles
+    _ringController.forward().then((_) {
+      _mainController.forward();
+      _pulseController.repeat(reverse: true);
+    });
+    Future.delayed(const Duration(milliseconds: 600), () {
+      _textController.forward();
+    });
+    Future.delayed(const Duration(milliseconds: 400), () {
+      _particleController.forward();
+    });
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _mainController.dispose();
+    _pulseController.dispose();
+    _ringController.dispose();
+    _textController.dispose();
+    _particleController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
-      body: Center(
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            return Opacity(
-              opacity: _opacityAnimation.value,
-              child: Transform.scale(
-                scale: _scaleAnimation.value,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Image.asset(
-                      'assets/medly_logo.png',
-                      width: 140,
-                      height: 140,
-                      fit: BoxFit.contain,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'CARE. CONNECT. SAVE LIVES.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey.shade600,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                  ],
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFF8E5E8),
+              Color(0xFFF5F7FB),
+              Color(0xFFEFF4F8),
+            ],
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Background particles
+            AnimatedBuilder(
+              animation: _particleController,
+              builder: (ctx, _) => CustomPaint(
+                size: size,
+                painter: _SplashParticlesPainter(
+                  progress: _particleController.value,
                 ),
               ),
-            );
-          },
+            ),
+
+            // Center content
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Expanding ring + glow + logo stack
+                  SizedBox(
+                    width: 200,
+                    height: 200,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Expanding ring
+                        AnimatedBuilder(
+                          animation: _ringController,
+                          builder: (ctx, child) {
+                            final ringSize = _ringController.value * 180;
+                            final ringOpacity = (1.0 - _ringController.value).clamp(0.0, 1.0);
+                            return Container(
+                              width: ringSize,
+                              height: ringSize,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.red.withValues(alpha: ringOpacity * 0.4),
+                                  width: 2,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        // Pulsing glow
+                        AnimatedBuilder(
+                          animation: _pulseController,
+                          builder: (ctx, child) {
+                            final glowSize = 120.0 + (_pulseController.value * 20);
+                            final glowOpacity = 0.15 + (_pulseController.value * 0.1);
+                            return Container(
+                              width: glowSize,
+                              height: glowSize,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.red.withValues(alpha: glowOpacity),
+                                    blurRadius: 40,
+                                    spreadRadius: 10,
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        // Logo with scale + bounce
+                        AnimatedBuilder(
+                          animation: _mainController,
+                          builder: (ctx, child) {
+                            final scale = Curves.elasticOut.transform(_mainController.value);
+                            final opacity = Curves.easeIn.transform(
+                              (_mainController.value * 2).clamp(0.0, 1.0),
+                            );
+                            return Opacity(
+                              opacity: opacity,
+                              child: Transform.scale(
+                                scale: scale,
+                                child: Container(
+                                  width: 110,
+                                  height: 110,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.red.withValues(alpha: 0.15),
+                                        blurRadius: 20,
+                                        offset: const Offset(0, 8),
+                                      ),
+                                    ],
+                                  ),
+                                  padding: const EdgeInsets.all(12),
+                                  child: Image.asset(
+                                    'assets/medly_logo.png',
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // App name with letter-by-letter fade
+                  AnimatedBuilder(
+                    animation: _textController,
+                    builder: (ctx, child) {
+                      return Opacity(
+                        opacity: _textController.value,
+                        child: Transform.translate(
+                          offset: Offset(0, 20 * (1 - _textController.value)),
+                          child: const Text(
+                            'Medly',
+                            style: TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFE53935),
+                              letterSpacing: 2,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // Tagline with delayed fade
+                  AnimatedBuilder(
+                    animation: _textController,
+                    builder: (ctx, child) {
+                      final taglineOpacity = (_textController.value * 1.5 - 0.5).clamp(0.0, 1.0);
+                      return Opacity(
+                        opacity: taglineOpacity,
+                        child: Transform.translate(
+                          offset: Offset(0, 15 * (1 - taglineOpacity)),
+                          child: Text(
+                            'CARE. CONNECT. SAVE LIVES.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey.shade500,
+                              letterSpacing: 3,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 40),
+
+                  // Loading dots
+                  AnimatedBuilder(
+                    animation: _textController,
+                    builder: (ctx, child) {
+                      if (_textController.value < 0.5) return const SizedBox();
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(3, (i) {
+                          final dotOpacity = ((_textController.value - 0.5) * 2 - (i * 0.15)).clamp(0.0, 1.0);
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: AnimatedOpacity(
+                              opacity: dotOpacity,
+                              duration: const Duration(milliseconds: 300),
+                              child: Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withValues(alpha: 0.6),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+// Particle painter for splash background
+class _SplashParticlesPainter extends CustomPainter {
+  final double progress;
+  _SplashParticlesPainter({required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+    final random = math.Random(42);
+
+    for (int i = 0; i < 25; i++) {
+      final startX = random.nextDouble() * size.width;
+      final startY = random.nextDouble() * size.height;
+      final speed = 0.3 + random.nextDouble() * 0.7;
+      final particleProgress = (progress * speed).clamp(0.0, 1.0);
+      final radius = 1.0 + random.nextDouble() * 2.5;
+      final opacity = (math.sin(particleProgress * math.pi) * 0.3).clamp(0.0, 0.3);
+
+      final x = startX + math.sin(particleProgress * math.pi * 2 + i) * 30;
+      final y = startY - particleProgress * 60;
+
+      paint.color = i.isEven
+          ? Colors.red.withValues(alpha: opacity)
+          : Colors.pink.withValues(alpha: opacity * 0.7);
+
+      canvas.drawCircle(Offset(x, y), radius, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SplashParticlesPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }
 
 // ---------------------------------------------------------------------------
