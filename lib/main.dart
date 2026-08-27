@@ -1114,6 +1114,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     'Family Member',
   ];
 
+  bool get _needsPatientName => _selectedRole == 'User' || _selectedRole == 'Family Member';
+
   void _submitAccount() {
     if (!_acceptedTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1123,10 +1125,15 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     }
     if (_nameController.text.trim().isEmpty ||
         _emailController.text.trim().isEmpty ||
-        _passwordController.text.trim().isEmpty ||
-        _patientController.text.trim().isEmpty) {
+        _passwordController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill in all details.')),
+      );
+      return;
+    }
+    if (_needsPatientName && _patientController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a patient name.')),
       );
       return;
     }
@@ -1135,7 +1142,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       _emailController.text.trim(),
       _passwordController.text.trim(),
       _selectedRole,
-      _patientController.text.trim(),
+      _needsPatientName ? _patientController.text.trim() : _nameController.text.trim(),
     );
   }
 
@@ -1244,15 +1251,17 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                       if (v != null) setState(() => _selectedRole = v);
                     },
                   ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _patientController,
-                    decoration: const InputDecoration(
-                      labelText: 'Patient name',
-                      prefixIcon: Icon(Icons.medical_services_rounded),
-                      border: OutlineInputBorder(),
+                  if (_needsPatientName) ...[
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _patientController,
+                      decoration: const InputDecoration(
+                        labelText: 'Patient name',
+                        prefixIcon: Icon(Icons.medical_services_rounded),
+                        border: OutlineInputBorder(),
+                      ),
                     ),
-                  ),
+                  ],
                   const SizedBox(height: 12),
                   Row(
                     children: [
