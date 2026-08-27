@@ -3743,33 +3743,7 @@ out center 100;
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                const Text('Medly', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(width: 8),
-                FutureBuilder<bool>(
-                  future: OfflineService.isOnline(),
-                  builder: (ctx, snap) {
-                    final online = snap.data ?? true;
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: online ? Colors.green.withOpacity(0.15) : Colors.orange.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.circle, size: 8, color: online ? Colors.green : Colors.orange),
-                          const SizedBox(width: 4),
-                          Text(online ? 'Online' : 'Offline', style: TextStyle(fontSize: 10, color: online ? Colors.green.shade700 : Colors.orange.shade700)),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
+            const Text('Medly', style: TextStyle(fontWeight: FontWeight.bold)),
             Text(
               '${widget.caregiverRole} • $_selectedPatientName',
               style: TextStyle(fontSize: 12, color: isDark ? Colors.white70 : Colors.black54),
@@ -3829,9 +3803,30 @@ out center 100;
             ),
             icon: Icon(widget.themeMode == ThemeMode.dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded),
           ),
-          // Profile menu
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.account_circle_rounded),
+          // Profile menu with online/offline dot
+          FutureBuilder<bool>(
+            future: OfflineService.isOnline(),
+            builder: (ctx, snap) {
+              final online = snap.data ?? true;
+              return PopupMenuButton<String>(
+                icon: Stack(
+                  children: [
+                    const Icon(Icons.account_circle_rounded, size: 28),
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: online ? Colors.green : Colors.red,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE8D9DA), width: 2),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
             onSelected: (value) {
               if (value == 'settings') {
                 Navigator.of(context).push(
@@ -3880,6 +3875,8 @@ out center 100;
               const PopupMenuItem(value: 'edit_profile', child: Text('Edit profile')),
               const PopupMenuItem(value: 'blood_donation', child: Text('Blood Donation')),
             ],
+          );
+            },
           ),
         ],
       ),
