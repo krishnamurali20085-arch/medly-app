@@ -1641,12 +1641,17 @@ class _MedlyHomePageState extends State<MedlyHomePage>
       if (payload != null && payload.startsWith('medicine_reminder:')) {
         final medicine = payload.replaceFirst('medicine_reminder:', '');
         print('[Notifications] Opening app for reminder: $medicine');
-        // The app is already in foreground after tap; switch to Health tab
+        setState(() => _selectedIndex = 2);
+      } else if (payload == 'streak_reminder' || payload == 'morning_motivation') {
+        // Switch to Health tab to show exercises
         setState(() => _selectedIndex = 2);
       }
     };
     // Reschedule all saved reminders — works even after app restart or reboot
     await NotificationService.rescheduleAllReminders();
+    // Schedule daily streak reminders (8 PM) and morning motivation (7 AM)
+    await NotificationService.scheduleStreakReminder();
+    await NotificationService.scheduleMorningMotivation();
   }
 
   String _getLanguageCode(String lang) {
@@ -3563,45 +3568,173 @@ out center 25;
         final completions = snap.data ?? [];
         final completedNames = completions.map((c) => c['exercise_name'] as String).toSet();
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: exercises.map((ex) {
-            final isDone = completedNames.contains(ex['name']);
-            return Card(
-              margin: const EdgeInsets.only(bottom: 10),
-              color: isDone
-                  ? (isDark ? const Color(0xFF1A3A2A) : const Color(0xFFE8F5E9))
-                  : null,
-              child: ListTile(
-                leading: Text(ex['icon'] ?? '🏃', style: const TextStyle(fontSize: 28)),
-                title: Text(
-                  ex['name'] ?? '',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    decoration: isDone ? TextDecoration.lineThrough : null,
+        // Check streak and send reminder if needed
+        DatabaseService.getStreak(widget.email).then((streakData) {
+          final currentStreak = (streakData?['current_streak'] as int?) ?? 0;
+          NotificationService.checkAndNotifyStreak(
+            email: widget.email,
+            currentStreak: currentStreak,
+            exercisesCompleted: completedNames.length,
+            totalExercises: exercises.length,
+          );
+        });
+
+        // Motivational streak header
+        return FutureBuilder<Map<String, dynamic>?>(
+          future: DatabaseService.getStreak(widget.email),
+          builder: (ctx, streakSnap) {
+            final streakData = streakSnap.data;
+            final currentStreak = (streakData?['current_streak'] as int?) ?? 0;
+            final completed = completedNames.length;
+            final total = exercises.length;
+            final allDone = completed >= total;
+
+            String streakEmoji;
+            String streakMessage;
+            Color streakColor;
+            if (allDone) {
+              streakEmoji = '🎉';
+              streakMessage = 'All exercises done today! Keep the streak alive tomorrow!';
+              streakColor = Colors.green;
+            } else if (currentStreak >= 30) {
+              streakEmoji = '👑';
+              streakMessage = "$currentStreak-day streak! Champions don't quit!";
+              streakColor = Colors.amber.shade700;
+            } else if (currentStreak >= 7) {
+              streakEmoji = '🔥';
+              streakMessage = "$currentStreak days strong! Don't break the chain!";
+              streakColor = Colors.deepOrange;
+            } else if (currentStreak >= 3) {
+              streakEmoji = '💪';
+              streakMessage = "$currentStreak days! Almost a week - keep pushing!";
+              streakColor = Colors.orange;
+            } else if (currentStreak >= 1) {
+              streakEmoji = '⭐';
+              streakMessage = '$currentStreak day streak started! Build the habit!';
+              streakColor = Colors.blue;
+            } else {
+              streakEmoji = '🌟';
+              streakMessage = '$completed/$total done today. Start your streak now!';
+              streakColor = Colors.purple;
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Motivational banner
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        streakColor.withOpacity(0.15),
+                        streakColor.withOpacity(0.05),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: streakColor.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Text(streakEmoji, style: const TextStyle(fontSize: 32)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Streak: $currentStreak day${currentStreak == 1 ? '' : 's'}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                color: streakColor,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              streakMessage,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark ? Colors.white70 : Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Progress ring
+                      SizedBox(
+                        width: 40,
+                        height: 40,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            CircularProgressIndicator(
+                              value: total > 0 ? completed / total : 0,
+                              strokeWidth: 4,
+                              backgroundColor: streakColor.withOpacity(0.15),
+                              valueColor: AlwaysStoppedAnimation(streakColor),
+                            ),
+                            Center(
+                              child: Text(
+                                '$completed/$total',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: streakColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                subtitle: Text('${ex['duration']} • ${ex['desc']}'),
-                trailing: isDone
-                    ? const Icon(Icons.check_circle, color: Colors.green, size: 28)
-                    : IconButton(
-                        icon: const Icon(Icons.check_circle_outline, size: 28),
-                        onPressed: () async {
-                          await DatabaseService.saveExerciseCompletion(
-                            email: widget.email,
-                            exerciseName: ex['name']!,
-                            dateKey: todayKey,
-                          );
-                          await DatabaseService.updateStreak(
-                            email: widget.email,
-                            todayKey: todayKey,
-                          );
-                          setState(() {});
-                        },
+                // Exercise cards
+                ...exercises.map((ex) {
+                  final isDone = completedNames.contains(ex['name']);
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    color: isDone
+                        ? (isDark ? const Color(0xFF1A3A2A) : const Color(0xFFE8F5E9))
+                        : null,
+                    child: ListTile(
+                      leading: Text(ex['icon'] ?? '🏃', style: const TextStyle(fontSize: 28)),
+                      title: Text(
+                        ex['name'] ?? '',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          decoration: isDone ? TextDecoration.lineThrough : null,
+                        ),
                       ),
-              ),
+                      subtitle: Text('${ex['duration']} • ${ex['desc']}'),
+                      trailing: isDone
+                          ? const Icon(Icons.check_circle, color: Colors.green, size: 28)
+                          : IconButton(
+                              icon: const Icon(Icons.check_circle_outline, size: 28),
+                              onPressed: () async {
+                                await DatabaseService.saveExerciseCompletion(
+                                  email: widget.email,
+                                  exerciseName: ex['name']!,
+                                  dateKey: todayKey,
+                                );
+                                await DatabaseService.updateStreak(
+                                  email: widget.email,
+                                  todayKey: todayKey,
+                                );
+                                setState(() {});
+                              },
+                            ),
+                    ),
+                  );
+                }),
+              ],
             );
-          }).toList(),
+          },
         );
       },
     );

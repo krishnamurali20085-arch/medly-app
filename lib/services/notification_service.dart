@@ -34,8 +34,9 @@ class NotificationService {
       },
     );
 
-    // Create the notification channel (required for Android 8+)
+    // Create the notification channels (required for Android 8+)
     await _createNotificationChannel();
+    await _createStreakChannel();
 
     _initialized = true;
     print('[Notifications] Initialized successfully');
@@ -272,5 +273,280 @@ class NotificationService {
   /// Generate a unique ID from medicine name and time
   static int generateId(String name, String time) {
     return (name + time).hashCode.abs() % 2147483647;
+  }
+
+  // ==================== EXERCISE STREAK REMINDERS ====================
+
+  /// Create the streak reminder notification channel
+  static Future<void> _createStreakChannel() async {
+    const channel = AndroidNotificationChannel(
+      'medly_streak_reminders',
+      'Exercise Streak Reminders',
+      description: 'Motivating reminders to keep your exercise streak alive',
+      importance: Importance.high,
+      enableVibration: true,
+      enableLights: true,
+      playSound: true,
+    );
+
+    final androidPlugin =
+        _plugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin != null) {
+      await androidPlugin.createNotificationChannel(channel);
+    }
+  }
+
+  /// Schedule a daily streak reminder at 8:00 PM.
+  /// If exercises aren't completed by 8 PM, this notification fires
+  /// with a motivating message based on the user's current streak.
+  static Future<void> scheduleStreakReminder() async {
+    await initialize();
+    await _createStreakChannel();
+
+    final hasPermission = await requestPermission();
+    if (!hasPermission) return;
+
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduledDate = tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      20, // 8 PM
+      0,
+    );
+
+    if (scheduledDate.isBefore(now)) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    }
+
+    const androidDetails = AndroidNotificationDetails(
+      'medly_streak_reminders',
+      'Exercise Streak Reminders',
+      channelDescription: 'Motivating reminders to keep your exercise streak alive',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+      ongoing: false,
+      autoCancel: true,
+      enableVibration: true,
+      enableLights: true,
+      styleInformation: BigTextStyleInformation(
+        'Complete your daily exercises to keep your streak going!',
+        contentTitle: '🏋️ Exercise Reminder',
+        summaryText: 'Tap to open Medly',
+      ),
+    );
+
+    const details = NotificationDetails(android: androidDetails);
+
+    // Use a fixed ID for the streak reminder so only one is scheduled
+    await _plugin.zonedSchedule(
+      99999, // Fixed ID for streak reminder
+      "🏋️ Don\'t Break Your Streak!",
+      "Your exercises are waiting - complete them before midnight!",
+      scheduledDate,
+      details,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: DateTimeComponents.time,
+      payload: 'streak_reminder',
+    );
+
+    print('[Notifications] Streak reminder scheduled for 8:00 PM daily');
+  }
+
+  /// Cancel the streak reminder
+  static Future<void> cancelStreakReminder() async {
+    await _plugin.cancel(99999);
+    print('[Notifications] Streak reminder cancelled');
+  }
+
+  /// Show an immediate streak notification with motivating message.
+  /// Call this when user opens the app and hasn't done exercises today.
+  static Future<void> showStreakReminder({
+    required int currentStreak,
+    required int exercisesCompleted,
+    required int totalExercises,
+  }) async {
+    await initialize();
+    await _createStreakChannel();
+    await requestPermission();
+
+    final message = _getStreakMotivationalMessage(
+      currentStreak,
+      exercisesCompleted,
+      totalExercises,
+    );
+
+    const androidDetails = AndroidNotificationDetails(
+      'medly_streak_reminders',
+      'Exercise Streak Reminders',
+      channelDescription: 'Motivating reminders to keep your exercise streak alive',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+      styleInformation: BigTextStyleInformation(
+        'Complete your exercises to keep your streak going!',
+        contentTitle: '🏋️ Exercise Streak',
+        summaryText: 'Tap to open Medly',
+      ),
+    );
+
+    const details = NotificationDetails(android: androidDetails);
+    await _plugin.show(99998, message['title'], message['body'], details);
+  }
+
+  /// Generates a motivational message based on streak length and progress.
+  /// Messages get more intense as streak grows.
+  static Map<String, String> _getStreakMotivationalMessage(
+    int currentStreak,
+    int exercisesCompleted,
+    int totalExercises,
+  ) {
+    final remaining = totalExercises - exercisesCompleted;
+
+    if (currentStreak == 0) {
+      // No streak yet - gentle nudge
+      return {
+        'title': '🌟 Start Your Journey Today!',
+        'body': remaining > 0
+            ? 'You have $remaining exercise${remaining > 1 ? 's' : ''} left today. Even 5 minutes makes a difference!'
+            : 'Great job completing your exercises! Keep it up tomorrow!',
+      };
+    } else if (currentStreak >= 1 && currentStreak <= 3) {
+      // Early streak - encouraging
+      return {
+        'title': '🔥 $currentStreak Day Streak - Keep Going!',
+        'body': remaining > 0
+            ? "Don't stop now! $remaining exercise${remaining > 1 ? 's' : ''} to go. Every day counts!"
+            : "You're building a habit! Day $currentStreak done - see you tomorrow!",
+      };
+    } else if (currentStreak >= 4 && currentStreak <= 6) {
+      // Building momentum - excited
+      return {
+        'title': '💪 $currentStreak Days Strong!',
+        'body': remaining > 0
+            ? 'Almost a week! Just $remaining exercise${remaining > 1 ? 's' : ''} left. Your body is thanking you!'
+            : "$currentStreak days in a row! You're unstoppable!",
+      };
+    } else if (currentStreak >= 7 && currentStreak <= 13) {
+      // One week milestone - celebratory + caution
+      return {
+        'title': '🎉 Week Streak! Don\'t Let It Slip!',
+        'body': remaining > 0
+            ? "$currentStreak days strong! $remaining exercise${remaining > 1 ? 's' : ''} to keep the fire burning. You've got this!"
+            : "A whole week! You're an inspiration! Keep the momentum going!",
+      };
+    } else if (currentStreak >= 14 && currentStreak <= 29) {
+      // Two weeks - intense motivation
+      return {
+        'title': "⚡ $currentStreak DAYS! You're a Warrior!",
+        'body': remaining > 0
+            ? "Two weeks of dedication! Don't let $remaining exercise${remaining > 1 ? 's' : ''} end it all. Champions don't quit!"
+            : "$currentStreak days! You're in the top 1% of dedicated people!",
+      };
+    } else if (currentStreak >= 30 && currentStreak <= 59) {
+      // Monthly - elite status
+      return {
+        'title': '🏆 $currentStreak Day LEGEND!',
+        'body': remaining > 0
+            ? 'Over a month of consistency! $remaining exercise${remaining > 1 ? 's' : ''} stand between you and greatness. Your future self is counting on you!'
+            : '$currentStreak days! You are literally rewiring your brain for health!',
+      };
+    } else {
+      // 60+ days - godlike
+      return {
+        'title': "👑 $currentStreak DAYS! You're UNSTOPPABLE!",
+        'body': remaining > 0
+            ? "A $currentStreak-day streak is EXTRAORDINARY. $remaining exercise${remaining > 1 ? 's' : ''} and you'll keep history rolling!"
+            : '$currentStreak days of pure discipline! You are an absolute champion!',
+      };
+    }
+  }
+
+  /// Check if exercises were completed today and show reminder if not.
+  /// Call this on app open and at 8 PM via scheduled notification.
+  static Future<void> checkAndNotifyStreak({
+    required String email,
+    required int currentStreak,
+    required int exercisesCompleted,
+    required int totalExercises,
+  }) async {
+    final now = DateTime.now();
+    final todayKey = '${now.year}-${now.month}-${now.day}';
+    final prefs = await SharedPreferences.getInstance();
+
+    // Check if we already sent a reminder today
+    final lastReminder = prefs.getString('last_streak_reminder_date');
+    if (lastReminder == todayKey) return; // Already reminded today
+
+    // Only remind if there are incomplete exercises
+    if (exercisesCompleted < totalExercises) {
+      await showStreakReminder(
+        currentStreak: currentStreak,
+        exercisesCompleted: exercisesCompleted,
+        totalExercises: totalExercises,
+      );
+      await prefs.setString('last_streak_reminder_date', todayKey);
+      print('[Notifications] Streak reminder shown: streak=$currentStreak, done=$exercisesCompleted/$totalExercises');
+    }
+  }
+
+  /// Schedule morning motivational notification (7 AM daily)
+  /// to start the day with exercise encouragement.
+  static Future<void> scheduleMorningMotivation() async {
+    await initialize();
+    await _createStreakChannel();
+
+    final hasPermission = await requestPermission();
+    if (!hasPermission) return;
+
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduledDate = tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      7, // 7 AM
+      0,
+    );
+
+    if (scheduledDate.isBefore(now)) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    }
+
+    const androidDetails = AndroidNotificationDetails(
+      'medly_streak_reminders',
+      'Exercise Streak Reminders',
+      channelDescription: 'Motivating reminders to keep your exercise streak alive',
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
+      icon: '@mipmap/ic_launcher',
+      styleInformation: BigTextStyleInformation(
+        'Start your day with a healthy exercise routine!',
+        contentTitle: '🌅 Good Morning!',
+        summaryText: 'Tap to open Medly',
+      ),
+    );
+
+    const details = NotificationDetails(android: androidDetails);
+
+    await _plugin.zonedSchedule(
+      99997, // Fixed ID for morning motivation
+      "🌅 Rise & Shine - Exercise Time!",
+      "A new day, a new chance to build your streak. Let\'s move!",
+      scheduledDate,
+      details,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: DateTimeComponents.time,
+      payload: 'morning_motivation',
+    );
+
+    print('[Notifications] Morning motivation scheduled for 7:00 AM daily');
   }
 }
