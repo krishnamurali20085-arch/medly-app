@@ -1888,12 +1888,33 @@ class _MedlyHomePageState extends State<MedlyHomePage>
         return;
       }
 
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      );
-
-      final lat = position.latitude;
-      final lon = position.longitude;
+      // Try last known first (instant)
+      double lat, lon;
+      try {
+        final lastKnown = await Geolocator.getLastKnownPosition();
+        if (lastKnown != null) {
+          lat = lastKnown.latitude;
+          lon = lastKnown.longitude;
+          _lastKnownLatitude = lat;
+          _lastKnownLongitude = lon;
+        } else {
+          final pos = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 20)),
+          );
+          lat = pos.latitude;
+          lon = pos.longitude;
+          _lastKnownLatitude = lat;
+          _lastKnownLongitude = lon;
+        }
+      } catch (_) {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 20)),
+        );
+        lat = pos.latitude;
+        lon = pos.longitude;
+        _lastKnownLatitude = lat;
+        _lastKnownLongitude = lon;
+      }
       _lastKnownLatitude = lat;
       _lastKnownLongitude = lon;
       final radius = 15000; // 15 km radius for better coverage
@@ -4473,7 +4494,7 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -4500,27 +4521,31 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
             if (widget.patients.isNotEmpty) ...[
               const Text('Linked patients', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: widget.patients.length,
-                  itemBuilder: (context, index) {
-                    final patient = widget.patients[index];
-                    final isSelected = _selectedPatientName == patient.name;
-                    return Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.person_rounded),
-                        title: Text(patient.name),
-                        trailing: isSelected ? const Chip(label: Text('Selected')) : const Icon(Icons.arrow_forward_ios_rounded),
-                        onTap: () {
-                          setState(() => _selectedPatientName = patient.name);
-                          widget.onPatientSelected(patient.name);
-                          Navigator.pop(context);
-                        },
-                      ),
-                    );
-                  },
-                ),
-              ),
+              ...widget.patients.map((patient) {
+                final isSelected = _selectedPatientName == patient.name;
+                return Card(
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: isSelected ? Colors.green.shade100 : Colors.grey.shade100,
+                      child: Icon(Icons.person_rounded, color: isSelected ? Colors.green : Colors.grey),
+                    ),
+                    title: Text(patient.name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                    subtitle: isSelected ? const Text('Currently selected', style: TextStyle(fontSize: 12, color: Colors.green)) : null,
+                    trailing: isSelected
+                        ? Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(12)),
+                            child: const Text('Active', style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold)),
+                          )
+                        : const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                    onTap: () {
+                      setState(() => _selectedPatientName = patient.name);
+                      widget.onPatientSelected(patient.name);
+                      Navigator.pop(context);
+                    },
+                  ),
+                );
+              }),
             ],
             const SizedBox(height: 12),
             ListTile(
@@ -5755,17 +5780,21 @@ class _ClinicMapPageState extends State<ClinicMapPage> with SingleTickerProvider
 
   Future<void> _findLocation() async {
     try {
-      // Force enable location services check
+      // Step 1: Check if location services are enabled
       if (!await Geolocator.isLocationServiceEnabled()) {
+        // Try to open location settings
         if (mounted) {
           setState(() {
             _loadingLocation = false;
-            _locationError = 'Location services are disabled. Please enable GPS in your phone settings.';
+            _locationError = 'GPS is turned OFF. Please enable Location/GPS in your phone settings.';
           });
         }
+        // Try to open location settings
+        try { await Geolocator.openLocationSettings(); } catch (_) {}
         return;
       }
 
+      // Step 2: Check/request permission
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -5775,9 +5804,10 @@ class _ClinicMapPageState extends State<ClinicMapPage> with SingleTickerProvider
         if (mounted) {
           setState(() {
             _loadingLocation = false;
-            _locationError = 'Location permission permanently denied. Please enable it in App Settings.';
+            _locationError = 'Location permission denied. Please allow it in App Settings.';
           });
         }
+        try { await Geolocator.openAppSettings(); } catch (_) {}
         return;
       }
 
@@ -5792,29 +5822,61 @@ class _ClinicMapPageState extends State<ClinicMapPage> with SingleTickerProvider
         return;
       }
 
-      // Get high-accuracy GPS position - THIS IS YOUR REAL LOCATION
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 15),
-        ),
-      );
-
-      if (mounted) {
-        final realLocation = LatLng(position.latitude, position.longitude);
-        setState(() {
-          _center = realLocation;
-          _loadingLocation = false;
-          _locationError = '';
-          _mapReady = true;
-        });
-        // Fetch hospitals NEAR YOUR REAL LOCATION
-        if (_services.isEmpty) {
-          _fetchServices(lat: position.latitude, lon: position.longitude);
+      // Step 3: Try last known position FIRST (instant, no waiting)
+      Position? position;
+      try {
+        position = await Geolocator.getLastKnownPosition();
+        if (position != null) {
+          print('[Map] Got last known position: ${position.latitude}, ${position.longitude}');
+          if (mounted) {
+            final loc = LatLng(position.latitude, position.longitude);
+            setState(() {
+              _center = loc;
+              _loadingLocation = false;
+              _locationError = '';
+              _mapReady = true;
+            });
+            if (_services.isEmpty) {
+              _fetchServices(lat: position.latitude, lon: position.longitude);
+            }
+            _mapController.move(loc, 14);
+          }
         }
-        // Move map to real location
-        if (_mapReady) {
+      } catch (e) {
+        print('[Map] lastKnownPosition error: $e');
+      }
+
+      // Step 4: Get fresh high-accuracy position (may take a few seconds)
+      try {
+        final freshPosition = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 20),
+          ),
+        );
+
+        if (mounted) {
+          final realLocation = LatLng(freshPosition.latitude, freshPosition.longitude);
+          setState(() {
+            _center = realLocation;
+            _loadingLocation = false;
+            _locationError = '';
+            _mapReady = true;
+          });
+          // Re-fetch hospitals with accurate location
+          _fetchServices(lat: freshPosition.latitude, lon: freshPosition.longitude);
           _mapController.move(realLocation, 14);
+        }
+      } catch (e) {
+        print('[Map] getCurrentPosition error: $e');
+        // If we already have lastKnownPosition, that's fine
+        if (_center != null) return;
+        // No position at all
+        if (mounted) {
+          setState(() {
+            _loadingLocation = false;
+            _locationError = 'Could not get GPS location. Make sure you are outdoors or near a window. Tap retry to try again.';
+          });
         }
       }
     } catch (e) {
@@ -5822,7 +5884,7 @@ class _ClinicMapPageState extends State<ClinicMapPage> with SingleTickerProvider
       if (mounted) {
         setState(() {
           _loadingLocation = false;
-          _locationError = 'Could not get GPS location. Tap retry to try again.';
+          _locationError = 'Location error: $e. Tap retry to try again.';
         });
       }
     }
