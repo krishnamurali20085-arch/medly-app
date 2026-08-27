@@ -1,0 +1,15 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-deps
+.packages
+build/
+/.dart_tool/
+/.idea/
+/.vscode/
+android/.gradle/
+**/local.properties
+ios/Flutter/Flutter.podspec
+ios/Pods/
+ios/Runner/GeneratedPluginRegistrant.*
+pubspec.lock
