@@ -5724,8 +5724,9 @@ class ClinicMapPage extends StatefulWidget {
 }
 
 class _ClinicMapPageState extends State<ClinicMapPage> with SingleTickerProviderStateMixin {
-  LatLng _center = const LatLng(12.9716, 77.5946);
+  LatLng? _center; // null until real GPS obtained
   bool _loadingLocation = true;
+  String _locationError = '';
   bool _loadingServices = false;
   List<HealthcareService> _services = [];
   List<Map<String, dynamic>> _sosLocations = [];
@@ -5757,37 +5758,76 @@ class _ClinicMapPageState extends State<ClinicMapPage> with SingleTickerProvider
 
   Future<void> _findLocation() async {
     try {
-      if (await Geolocator.isLocationServiceEnabled()) {
-        var permission = await Geolocator.checkPermission();
-        if (permission == LocationPermission.denied) {
-          permission = await Geolocator.requestPermission();
+      // Force enable location services check
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        if (mounted) {
+          setState(() {
+            _loadingLocation = false;
+            _locationError = 'Location services are disabled. Please enable GPS in your phone settings.';
+          });
         }
-        if (permission == LocationPermission.always ||
-            permission == LocationPermission.whileInUse) {
-          final position = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-          );
-          if (mounted) {
-            setState(() {
-              _center = LatLng(position.latitude, position.longitude);
-              _loadingLocation = false;
-              _mapReady = true;
-            });
-            // If we don't have services yet, fetch them
-            if (_services.isEmpty) {
-              _fetchServices();
-            }
-          }
-          return;
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) {
+          setState(() {
+            _loadingLocation = false;
+            _locationError = 'Location permission permanently denied. Please enable it in App Settings.';
+          });
+        }
+        return;
+      }
+
+      if (permission != LocationPermission.always &&
+          permission != LocationPermission.whileInUse) {
+        if (mounted) {
+          setState(() {
+            _loadingLocation = false;
+            _locationError = 'Location permission required. Please allow location access.';
+          });
+        }
+        return;
+      }
+
+      // Get high-accuracy GPS position - THIS IS YOUR REAL LOCATION
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+
+      if (mounted) {
+        final realLocation = LatLng(position.latitude, position.longitude);
+        setState(() {
+          _center = realLocation;
+          _loadingLocation = false;
+          _locationError = '';
+          _mapReady = true;
+        });
+        // Fetch hospitals NEAR YOUR REAL LOCATION
+        if (_services.isEmpty) {
+          _fetchServices(lat: position.latitude, lon: position.longitude);
+        }
+        // Move map to real location
+        if (_mapReady) {
+          _mapController.move(realLocation, 14);
         }
       }
-    } catch (_) {}
-    if (mounted) {
-      setState(() {
-        _loadingLocation = false;
-        _mapReady = true;
-      });
-      if (_services.isEmpty) _fetchServices();
+    } catch (e) {
+      print('[Map] Location error: $e');
+      if (mounted) {
+        setState(() {
+          _loadingLocation = false;
+          _locationError = 'Could not get GPS location. Tap retry to try again.';
+        });
+      }
     }
   }
 
@@ -5797,44 +5837,52 @@ class _ClinicMapPageState extends State<ClinicMapPage> with SingleTickerProvider
     if (mounted) setState(() => _sosLocations = locations);
   }
 
-  Future<void> _fetchServices() async {
+  Future<void> _fetchServices({double? lat, double? lon}) async {
     setState(() => _loadingServices = true);
     try {
-      if (!await Geolocator.isLocationServiceEnabled()) {
-        setState(() => _loadingServices = false);
-        return;
+      // Use passed coordinates or get fresh GPS
+      double searchLat, searchLon;
+      if (lat != null && lon != null) {
+        searchLat = lat;
+        searchLon = lon;
+      } else {
+        if (!await Geolocator.isLocationServiceEnabled()) {
+          if (mounted) setState(() => _loadingServices = false);
+          return;
+        }
+        var permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+        if (permission != LocationPermission.always &&
+            permission != LocationPermission.whileInUse) {
+          if (mounted) setState(() => _loadingServices = false);
+          return;
+        }
+        final position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 15)),
+        );
+        searchLat = position.latitude;
+        searchLon = position.longitude;
       }
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission != LocationPermission.always &&
-          permission != LocationPermission.whileInUse) {
-        setState(() => _loadingServices = false);
-        return;
-      }
-
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      );
-      final lat = position.latitude;
-      final lon = position.longitude;
+      final finalLat = searchLat;
+      final finalLon = searchLon;
       setState(() {
-        _center = LatLng(lat, lon);
+        _center = LatLng(finalLat, finalLon);
         _loadingLocation = false;
       });
 
       final radius = 15000; // 15 km radius
       final query = '''
-[out:json][timeout:20];
+[out:json][timeout:25];
 (
-  node["amenity"="hospital"](around:$radius,$lat,$lon);
-  node["amenity"="pharmacy"](around:$radius,$lat,$lon);
-  node["healthcare"="ambulance"](around:$radius,$lat,$lon);
-  node["healthcare"="clinic"](around:$radius,$lat,$lon);
-  way["amenity"="hospital"](around:$radius,$lat,$lon);
-  way["amenity"="pharmacy"](around:$radius,$lat,$lon);
-  relation["amenity"="hospital"](around:$radius,$lat,$lon);
+  node["amenity"="hospital"](around:$radius,$finalLat,$finalLon);
+  node["amenity"="pharmacy"](around:$radius,$finalLat,$finalLon);
+  node["healthcare"="ambulance"](around:$radius,$finalLat,$finalLon);
+  node["healthcare"="clinic"](around:$radius,$finalLat,$finalLon);
+  way["amenity"="hospital"](around:$radius,$finalLat,$finalLon);
+  way["amenity"="pharmacy"](around:$radius,$finalLat,$finalLon);
+  relation["amenity"="hospital"](around:$radius,$finalLat,$finalLon);
 );
 out center 100;
 ''';
@@ -5842,7 +5890,7 @@ out center 100;
       final response = await http.post(
         Uri.parse('https://overpass-api.de/api/interpreter'),
         body: {'data': query},
-      ).timeout(const Duration(seconds: 25));
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -5864,7 +5912,7 @@ out center 100;
           final elLon = el['lon'] ?? el['center']?['lon'];
           if (elLat == null || elLon == null) continue;
 
-          final dist = Geolocator.distanceBetween(lat, lon, elLat.toDouble(), elLon.toDouble());
+          final dist = Geolocator.distanceBetween(finalLat, finalLon, elLat.toDouble(), elLon.toDouble());
           final distKm = (dist / 1000).toStringAsFixed(1);
 
           services.add(HealthcareService(
@@ -5940,10 +5988,12 @@ out center 100;
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mapCenter = _center ?? const LatLng(20.5937, 78.9629); // India center if no GPS
     final markers = <Marker>[
-      // User location (blue pulsing dot)
+      // User location (blue pulsing dot) - only show if we have real GPS
+      if (_center != null)
       Marker(
-        point: _center,
+        point: _center!,
         width: 44,
         height: 44,
         child: Container(
@@ -6039,17 +6089,21 @@ out center 100;
             ),
           IconButton(
             onPressed: () {
+              setState(() {
+                _loadingLocation = true;
+                _loadingServices = true;
+                _locationError = '';
+              });
               _findLocation();
-              _fetchServices();
               _loadSosLocations();
             },
             icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Refresh',
+            tooltip: 'Refresh location',
           ),
           IconButton(
             onPressed: () {
               if (_mapReady) {
-                _mapController.move(_center, _selectedZoom.toDouble());
+                _mapController.move(_center ?? mapCenter, _selectedZoom.toDouble());
               }
             },
             icon: const Icon(Icons.my_location_rounded),
@@ -6062,7 +6116,7 @@ out center 100;
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: _center,
+              initialCenter: mapCenter,
               initialZoom: _selectedZoom.toDouble(),
               onPositionChanged: (pos, hasGesture) {
                 if (hasGesture) {
@@ -6083,6 +6137,81 @@ out center 100;
           ),
           if (_loadingLocation)
             const Align(alignment: Alignment.topCenter, child: LinearProgressIndicator()),
+          // Location error banner
+          if (_locationError.isNotEmpty && !_loadingLocation)
+            Positioned(
+              top: 50,
+              left: 16,
+              right: 16,
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.shade200),
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8)],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.location_off, color: Colors.orange, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(_locationError, style: const TextStyle(fontSize: 13, color: Colors.black87)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _loadingLocation = true;
+                            _locationError = '';
+                          });
+                          _findLocation();
+                        },
+                        icon: const Icon(Icons.refresh, size: 16),
+                        label: const Text('Retry — Get My Location'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange.shade700,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          // Loading overlay while getting location
+          if (_loadingLocation && _center == null)
+            Positioned(
+              top: 60,
+              left: 16,
+              right: 16,
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.black87 : Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8)],
+                ),
+                child: const Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 12),
+                    Text('Getting your GPS location...', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                    SizedBox(height: 4),
+                    Text('Please wait while we find where you are', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  ],
+                ),
+              ),
+            ),
           // Filter chips at top
           Positioned(
             top: 8,
