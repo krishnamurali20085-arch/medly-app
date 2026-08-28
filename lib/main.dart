@@ -27,6 +27,8 @@ import 'services/supabase_service.dart';
 import 'services/notification_service.dart';
 import 'services/offline_service.dart';
 import 'services/exercise_service.dart';
+import 'services/heart_rate_service.dart';
+import 'heart_rate_monitor_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -2946,6 +2948,7 @@ out center 100;
               _infoPill(_t('Diseases'), (widget.diseases?.isNotEmpty ?? false) ? widget.diseases! : _t('None')),
               _infoPill(_t('Weight'), (widget.weight?.isNotEmpty ?? false) ? '${widget.weight} kg' : _t('Not set')),
               _infoPill(_t('Height'), (widget.height?.isNotEmpty ?? false) ? '${widget.height} cm' : _t('Not set')),
+              _buildBmiPill(),
             ],
           ),
           const SizedBox(height: 20),
@@ -3372,6 +3375,33 @@ out center 100;
         ),
         const SizedBox(height: 18),
 
+        // Heart Rate Monitor button
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const HeartRateMonitorPage(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.favorite_rounded, size: 18),
+            label: const Text('Heart Rate Monitor', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade50,
+              foregroundColor: Colors.red.shade700,
+              side: BorderSide(color: Colors.red.shade200),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
         // Nearby care - Map button
         SizedBox(
           width: double.infinity,
@@ -3742,6 +3772,37 @@ out center 100;
           Text(label, style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54)),
           const SizedBox(height: 4),
           Text(value, style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBmiPill() {
+    final bmiData = HeartRateService.calculateBMI(
+      widget.weight ?? '',
+      widget.height ?? '',
+    );
+    final bmi = bmiData['bmi'] as double;
+    final category = bmiData['category'] as String;
+    final color = bmiData['color'] as Color;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1F2937) : color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('BMI', style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54)),
+          const SizedBox(height: 4),
+          Text(
+            bmi > 0 ? '$bmi ($category)' : 'Not set',
+            style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13),
+          ),
         ],
       ),
     );
