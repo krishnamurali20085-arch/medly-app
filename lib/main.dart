@@ -6250,6 +6250,8 @@ class _ClinicMapPageState extends State<ClinicMapPage> with SingleTickerProvider
   RouteInfo? _currentRoute;
   bool _loadingRoute = false;
   HealthcareService? _selectedService;
+  bool _isNavigating = false;
+  StreamSubscription<Position>? _navigationSub;
 
   @override
   void initState() {
@@ -6267,6 +6269,7 @@ class _ClinicMapPageState extends State<ClinicMapPage> with SingleTickerProvider
 
   @override
   void dispose() {
+    _navigationSub?.cancel();
     _pulseController.dispose();
     super.dispose();
   }
@@ -6913,14 +6916,35 @@ out center 100;
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.route_rounded, color: Color(0xFF6C63FF), size: 22),
-                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: _isNavigating ? Colors.green.withOpacity(0.1) : const Color(0xFF6C63FF).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            _isNavigating ? Icons.navigation_rounded : Icons.route_rounded,
+                            color: _isNavigating ? Colors.green : const Color(0xFF6C63FF),
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
                         Expanded(
-                          child: Text(
-                            _selectedService?.name ?? '',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _selectedService?.name ?? '',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (_isNavigating)
+                                const Text(
+                                  'Following your location...', 
+                                  style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.w500),
+                                ),
+                            ],
                           ),
                         ),
                         GestureDetector(
@@ -6949,16 +6973,13 @@ out center 100;
                       children: [
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed: () async {
-                              if (_selectedService?.latitude != null && _selectedService?.longitude != null) {
-                                final url = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${_selectedService!.latitude},${_selectedService!.longitude}');
-                                if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
-                              }
+                            onPressed: () {
+                              _startNavigation();
                             },
                             icon: const Icon(Icons.navigation_rounded, size: 16),
-                            label: const Text('Navigate in Maps'),
+                            label: Text(_isNavigating ? 'Stop Navigation' : 'Start Navigation'),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
+                              backgroundColor: _isNavigating ? Colors.red : Colors.green,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 10),
                             ),
@@ -7118,11 +7139,48 @@ out center 100;
   }
 
   void _clearRoute() {
+    _stopNavigation();
     setState(() {
       _routePoints = [];
       _currentRoute = null;
       _selectedService = null;
     });
+  }
+
+  void _startNavigation() {
+    if (_isNavigating) {
+      _stopNavigation();
+      return;
+    }
+    if (_center == null || _selectedService == null) return;
+
+    setState(() => _isNavigating = true);
+
+    // Follow user location in real-time
+    _navigationSub = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 5),
+    ).listen((pos) {
+      if (!mounted || !_isNavigating) return;
+      final userLatLng = LatLng(pos.latitude, pos.longitude);
+      setState(() => _center = userLatLng);
+      _mapController.move(userLatLng, 17);
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Navigation started! Map follows your location.'),
+        backgroundColor: Color(0xFF6C63FF),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _stopNavigation() {
+    _navigationSub?.cancel();
+    _navigationSub = null;
+    if (_isNavigating) {
+      setState(() => _isNavigating = false);
+    }
   }
 
   void _showServiceSheet(HealthcareService service) {
@@ -7186,14 +7244,12 @@ out center 100;
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () async {
-                      if (service.latitude != null && service.longitude != null) {
-                        final url = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${service.latitude},${service.longitude}');
-                        if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
-                      }
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _showRoute(service);
                     },
                     icon: const Icon(Icons.navigation_rounded, size: 18),
-                    label: const Text('Navigate'),
+                    label: const Text('Start Navigation'),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
                   ),
                 ),
