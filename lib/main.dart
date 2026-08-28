@@ -10,6 +10,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:http/http.dart' as http;
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
@@ -1589,6 +1590,9 @@ class _MedlyHomePageState extends State<MedlyHomePage>
 
   // Exercise checkbox selection
   final Set<String> _selectedExercises = {};
+
+  // Profile photo
+  String? _profilePhotoPath;
   String _todayDateKey = '';
 
   // Step counter — uses hardware pedometer sensor
@@ -1845,6 +1849,9 @@ class _MedlyHomePageState extends State<MedlyHomePage>
 
   Future<void> _loadSavedData() async {
     final prefs = await SharedPreferences.getInstance();
+    // Load profile photo
+    final photoPath = prefs.getString('profile_photo_${widget.email}');
+    if (photoPath != null) setState(() => _profilePhotoPath = photoPath);
     final savedDate = prefs.getString('screen_time_date');
     setState(() {
       if (savedDate == _todayDateKey) {
@@ -4148,7 +4155,17 @@ out center 100;
               return PopupMenuButton<String>(
                 icon: Stack(
                   children: [
-                    const Icon(Icons.account_circle_rounded, size: 28),
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor: const Color(0xFF6C63FF).withOpacity(0.15),
+                      backgroundImage: _profilePhotoPath != null ? FileImage(File(_profilePhotoPath!)) : null,
+                      child: _profilePhotoPath == null
+                          ? Text(
+                              widget.patientName.isNotEmpty ? widget.patientName[0].toUpperCase() : '?',
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF6C63FF)),
+                            )
+                          : null,
+                    ),
                     Positioned(
                       right: 0,
                       bottom: 0,
@@ -4804,6 +4821,48 @@ class CaregiverSettingsPage extends StatefulWidget {
 
 class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
   late String _selectedPatientName = widget.selectedPatientName;
+  String? _profilePhotoPath;
+  final ImagePicker _picker = ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfilePhoto();
+  }
+
+  Future<void> _loadProfilePhoto() async {
+    final prefs = await SharedPreferences.getInstance();
+    final path = prefs.getString('profile_photo_${widget.caregiverEmail}');
+    if (mounted) setState(() => _profilePhotoPath = path);
+  }
+
+  Future<void> _pickProfilePhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_rounded),
+              title: const Text('Take Photo'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded),
+              title: const Text('Choose from Gallery'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    final XFile? image = await _picker.pickImage(source: source, maxWidth: 512, maxHeight: 512, imageQuality: 80);
+    if (image == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('profile_photo_${widget.caregiverEmail}', image.path);
+    if (mounted) setState(() => _profilePhotoPath = image.path);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -4822,14 +4881,56 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
                 color: isDark ? const Color(0xFF1F2937) : Colors.white,
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  const Text('Account', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  const SizedBox(height: 6),
-                  Text(widget.caregiverName, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 6),
-                  Text('Role: ${widget.caregiverRole}'),
+                  GestureDetector(
+                    onTap: _pickProfilePhoto,
+                    child: Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 36,
+                          backgroundColor: const Color(0xFF6C63FF).withOpacity(0.15),
+                          backgroundImage: _profilePhotoPath != null ? FileImage(File(_profilePhotoPath!)) : null,
+                          child: _profilePhotoPath == null
+                              ? Text(
+                                  widget.caregiverName.isNotEmpty ? widget.caregiverName[0].toUpperCase() : '?',
+                                  style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Color(0xFF6C63FF)),
+                                )
+                              : null,
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF6C63FF),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.camera_alt_rounded, size: 14, color: Colors.white),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Account', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        const SizedBox(height: 4),
+                        Text(widget.caregiverName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text('Role: ${widget.caregiverRole}'),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.camera_alt_rounded, color: Color(0xFF6C63FF)),
+                    onPressed: _pickProfilePhoto,
+                    tooltip: 'Change photo',
+                  ),
                 ],
               ),
             ),
