@@ -3858,6 +3858,72 @@ out center 100;
                     ),
                   );
                 }),
+                // Submit button
+                const SizedBox(height: 12),
+                if (!allDone)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        // Mark all exercises as done
+                        for (final ex in exercises) {
+                          if (!completedNames.contains(ex['name'])) {
+                            await DatabaseService.saveExerciseCompletion(
+                              email: widget.email,
+                              exerciseName: ex['name']!,
+                              dateKey: todayKey,
+                            );
+                          }
+                        }
+                        await DatabaseService.updateStreak(
+                          email: widget.email,
+                          todayKey: todayKey,
+                        );
+                        setState(() {});
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(_t('All exercises submitted! Streak updated 🔥')),
+                              backgroundColor: Colors.green,
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.done_all_rounded, color: Colors.white),
+                      label: Text(
+                        _t('Submit All Exercises'),
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF6C63FF),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 2,
+                      ),
+                    ),
+                  ),
+                if (allDone)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A3A2A),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.green.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('✅', style: TextStyle(fontSize: 22)),
+                        const SizedBox(width: 8),
+                        Text(
+                          _t('All exercises completed for today!'),
+                          style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             );
           },
