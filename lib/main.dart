@@ -28,6 +28,7 @@ import 'services/notification_service.dart';
 import 'services/offline_service.dart';
 import 'services/exercise_service.dart';
 import 'services/heart_rate_service.dart';
+import 'services/translation_service.dart';
 import 'heart_rate_monitor_page.dart';
 
 Future<void> main() async {
@@ -2446,6 +2447,25 @@ out center 100;
                       ),
                     ],
                   ),
+                  // Language indicator
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.indigo.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.language, size: 14, color: Colors.indigo),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Responding in: $_selectedLanguage',
+                          style: const TextStyle(fontSize: 12, color: Colors.indigo),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: symptomController,
@@ -2572,20 +2592,19 @@ out center 100;
                         context: localCtx,
                         builder: (_) => AlertDialog(
                           title: const Text('How to use AI Assistant'),
-                          content: const SingleChildScrollView(
+                          content: SingleChildScrollView(
                             child: Text(
-                              '1. Type or speak your symptoms or health question\\n\\n'
-                              '2. Press Enter key or tap "Get guidance" for analysis\\n\\n'
-                              '3. The AI will analyze and provide:\\n'
-                              '   - What your symptoms could indicate\\n'
-                              '   - Urgency level (low to emergency)\\n'
-                              '   - First aid steps if applicable\\n'
-                              '   - When to see a doctor\\n\\n'
-                              '4. Tap the mic button to speak in your language\\n'
-                              '   (English, Tamil, Hindi, Telugu, Kannada,\\n'
-                              '    Malayalam, Marathi, Urdu, French, Japanese)\\n\\n'
-                              '5. The response will be read aloud in your language\\n\\n'
-                              'Supported topics: fever, cold, injuries, allergies,\\n'
+                              '1. Type or speak your symptoms or health question\n\n'
+                              '2. Press Enter key or tap "Get guidance" for analysis\n\n'
+                              '3. The AI responds in your selected language: $_selectedLanguage\n\n'
+                              '4. Supported languages:\n'
+                              '   English, Tamil, Hindi, Telugu, Kannada,\n'
+                              '   Malayalam, Marathi, Urdu, French, Japanese\n\n'
+                              '5. Tap the mic button to speak in your language\n\n'
+                              '6. The response is read aloud in your language\n\n'
+                              '7. Change language from the app settings to\n'
+                              '   get responses in a different language\n\n'
+                              'Supported topics: fever, cold, injuries, allergies,\n'
                               'diabetes, blood pressure, mental health, and more.',
                             ),
                           ),
@@ -2633,6 +2652,10 @@ out center 100;
   }
 
   Future<String> _generateAiGuidance(String symptoms) async {
+    // Determine target language for response
+    final targetLang = _selectedLanguage;
+    final langCode = TranslationService.getLanguageCode(targetLang);
+
     // Gemini API (key bundled in app, not visible to users)
     const geminiApiKey = 'AIzaSyDummyReplaceMe'; // Replace with real key
     try {
@@ -2643,7 +2666,7 @@ out center 100;
           body: jsonEncode({
             'contents': [{
               'parts': [{
-                'text': 'You are Medly, a smart healthcare assistant. The user describes: "$symptoms". Provide helpful health guidance including: 1) What this could indicate, 2) Urgency level (low/moderate/high/emergency), 3) First aid steps if applicable, 4) When to see a doctor. Be concise but thorough. Include disclaimer that this is not a substitute for professional medical advice. Respond in the same language as the input if possible.'
+                'text': 'You are Medly, a smart healthcare assistant. The user describes: "$symptoms". IMPORTANT: Respond entirely in ${_selectedLanguage} language (language code: $langCode). Provide helpful health guidance including: 1) What this could indicate, 2) Urgency level (low/moderate/high/emergency), 3) First aid steps if applicable, 4) When to see a doctor. Be concise but thorough. Include disclaimer that this is not a substitute for professional medical advice. Use simple, clear ${_selectedLanguage} that anyone can understand.'
               }]
             }],
             'generationConfig': {
@@ -2661,7 +2684,19 @@ out center 100;
       }
     } catch (_) {}
 
-    // Fallback to enhanced local knowledge
+    // Fallback to enhanced local knowledge — translate to user's language
+    String guidance = _getLocalGuidance(symptoms);
+    if (targetLang != 'English') {
+      guidance = await TranslationService.translate(
+        text: guidance,
+        targetLanguage: targetLang,
+      );
+    }
+    return guidance;
+  }
+
+  /// Local knowledge base fallback (English)
+  String _getLocalGuidance(String symptoms) {
     final lowered = symptoms.toLowerCase();
 
     if (lowered.contains('chest pain') || lowered.contains('difficulty breathing') || lowered.contains('severe bleeding') || lowered.contains('faint') || lowered.contains('unconscious') || lowered.contains('heart attack')) {
