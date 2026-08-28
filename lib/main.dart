@@ -41,7 +41,7 @@ Future<void> main() async {
   // Initialize Supabase cloud database
   try {
     await Supabase.initialize(
-      url: 'https://yubybmlfmyabqrxssjuu.supabase.co',
+      url: 'https://guomxsumdtkjcwipafdt.supabase.co',
       publishableKey: 'sb_publishable_i8q3Sy9oL7zbxGn7wk07GQ_gEciptus',
     );
     print('[Supabase] Initialized successfully');
