@@ -1857,6 +1857,28 @@ class _MedlyHomePageState extends State<MedlyHomePage>
           );
       });
     }
+    // Load today's health snapshot from database
+    try {
+      final snapshots = await DatabaseService.getHealthSnapshots(_selectedPatientName);
+      final today = snapshots.where((s) => s['date_key'] == _todayDateKey).toList();
+      if (today.isNotEmpty) {
+        final data = today.first;
+        setState(() {
+          if (data['blood_pressure'] != null && (data['blood_pressure'] as String).isNotEmpty) {
+            _healthMetrics[0] = HealthMetric(label: 'Blood Pressure', value: data['blood_pressure'] as String, unit: 'mmHg', color: Colors.blue);
+          }
+          if (data['blood_sugar'] != null && (data['blood_sugar'] as String).isNotEmpty) {
+            _healthMetrics[1] = HealthMetric(label: 'Blood Sugar', value: data['blood_sugar'] as String, unit: 'mg/dL', color: Colors.teal);
+          }
+          if (data['heart_rate'] != null && (data['heart_rate'] as String).isNotEmpty) {
+            _healthMetrics[2] = HealthMetric(label: 'Heart Rate', value: data['heart_rate'] as String, unit: 'bpm', color: Colors.orange);
+          }
+          if (data['sleep_hours'] != null && (data['sleep_hours'] as String).isNotEmpty) {
+            _healthMetrics[3] = HealthMetric(label: 'Sleep', value: data['sleep_hours'] as String, unit: 'hrs', color: Colors.purple);
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _saveScreenTime() async {
@@ -3379,12 +3401,55 @@ out center 100;
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
-            onPressed: () {
-              Navigator.of(context).push(
+            onPressed: () async {
+              final bpm = await Navigator.of(context).push<double>(
                 MaterialPageRoute(
                   builder: (_) => const HeartRateMonitorPage(),
                 ),
               );
+              // Auto-save measured heart rate to today's health snapshot
+              if (bpm != null && bpm > 0) {
+                setState(() {
+                  _healthMetrics[2] = HealthMetric(
+                    label: 'Heart Rate',
+                    value: bpm.toStringAsFixed(0),
+                    unit: 'bpm',
+                    color: Colors.orange,
+                  );
+                });
+                // Save to database
+                try {
+                  await DatabaseService.saveHealthSnapshot(
+                    patientName: _selectedPatientName,
+                    dateKey: _todayDateKey,
+                    bloodPressure: '',
+                    bloodSugar: '',
+                    heartRate: bpm.toStringAsFixed(0),
+                    sleepHours: '',
+                    steps: _todaySteps,
+                  );
+                } catch (_) {}
+                try {
+                  SupabaseService.syncHealthSnapshot(
+                    patientName: _selectedPatientName,
+                    dateKey: _todayDateKey,
+                    bloodPressure: '',
+                    bloodSugar: '',
+                    heartRate: bpm.toStringAsFixed(0),
+                    sleepHours: '',
+                    steps: _todaySteps,
+                  );
+                } catch (_) {}
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Heart rate ${bpm.toStringAsFixed(0)} bpm saved to today\'s health snapshot'),
+                      backgroundColor: Colors.green,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              }
             },
             icon: const Icon(Icons.favorite_rounded, size: 18),
             label: const Text('Heart Rate Monitor', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),

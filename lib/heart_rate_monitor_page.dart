@@ -215,6 +215,14 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
     if (mounted) {
       setState(() => _isMeasuring = false);
       HapticFeedback.heavyImpact();
+
+      // Return the measured BPM to the caller
+      if (_currentBpm > 0) {
+        // Delay slightly so the user can see the final result
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) Navigator.pop(context, _currentBpm);
+        });
+      }
     }
   }
 
