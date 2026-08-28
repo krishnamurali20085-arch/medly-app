@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:torch_light/torch_light.dart';
+import 'package:camera/camera.dart';
 import 'services/heart_rate_service.dart';
 
 class HeartRateMonitorPage extends StatefulWidget {
@@ -14,10 +15,11 @@ class HeartRateMonitorPage extends StatefulWidget {
 
 class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
     with TickerProviderStateMixin {
+  CameraController? _cameraController;
   final HeartRateService _heartRateService = HeartRateService();
 
   bool _isMeasuring = false;
-  bool _torchAvailable = false;
+  bool _cameraInitialized = false;
   double _currentBpm = 0;
   int _measurementTime = 0;
   Timer? _timer;
@@ -29,10 +31,7 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
 
   // History
   final List<double> _bpmHistory = [];
-
-  // BPM detection via accelerometer-like signal
-  final List<double> _rawSignal = [];
-  Timer? _signalTimer;
+  final List<double> _rawGreenSignal = [];
 
   // Target measurement duration
   static const int _targetDuration = 30;
@@ -41,7 +40,7 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
   void initState() {
     super.initState();
     _initAnimations();
-    _checkTorch();
+    _initCamera();
     _heartRateService.onBpmUpdated = (bpm) {
       if (mounted) {
         setState(() {
@@ -72,33 +71,86 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
     }
   }
 
-  Future<void> _checkTorch() async {
+  Future<void> _initCamera() async {
     try {
-      _torchAvailable = await TorchLight.isTorchAvailable();
-      if (mounted) setState(() {});
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        setState(() => _error = 'No camera found on this device');
+        return;
+      }
+
+      // Use the back camera (where the torch is)
+      final backCamera = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first,
+      );
+
+      _cameraController = CameraController(
+        backCamera,
+        ResolutionPreset.low, // Low res for fast processing
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.yuv420,
+      );
+
+      await _cameraController!.initialize();
+      if (mounted) {
+        setState(() => _cameraInitialized = true);
+      }
     } catch (e) {
-      _torchAvailable = false;
+      setState(() => _error = 'Camera initialization failed: $e');
     }
   }
 
-  Future<void> _enableTorch() async {
-    try {
-      if (_torchAvailable) {
-        await TorchLight.enableTorch();
+  void _startImageStream() {
+    _cameraController?.startImageStream((CameraImage image) {
+      if (!_heartRateService.isMeasuring) return;
+
+      final planes = image.planes;
+      if (planes.isEmpty) return;
+
+      // YUV420 format: Y plane is the luminance
+      // For PPG, we use the average brightness of the center region
+      final yPlane = planes[0].bytes;
+      final width = image.width;
+      final height = image.height;
+
+      // Sample center 40% of the frame (where fingertip should be)
+      final startX = (width * 0.3).toInt();
+      final endX = (width * 0.7).toInt();
+      final startY = (height * 0.3).toInt();
+      final endY = (height * 0.7).toInt();
+
+      double sum = 0;
+      int count = 0;
+
+      // Sample every 3rd pixel for speed
+      for (int y = startY; y < endY; y += 3) {
+        for (int x = startX; x < endX; x += 3) {
+          final index = y * width + x;
+          if (index < yPlane.length) {
+            sum += yPlane[index];
+            count++;
+          }
+        }
       }
-    } catch (e) {
-      print('[HeartRate] Could not enable torch: $e');
-    }
+
+      if (count > 0) {
+        final avgBrightness = sum / count;
+        _rawGreenSignal.add(avgBrightness);
+
+        // Keep signal buffer manageable (last 300 samples ~ 10 seconds at 30fps)
+        if (_rawGreenSignal.length > 300) {
+          _rawGreenSignal.removeAt(0);
+        }
+
+        // Feed to heart rate service (use brightness as all channels for YUV)
+        _heartRateService.processFrame(avgBrightness, avgBrightness, avgBrightness);
+      }
+    });
   }
 
-  Future<void> _disableTorch() async {
-    try {
-      if (_torchAvailable) {
-        await TorchLight.disableTorch();
-      }
-    } catch (e) {
-      print('[HeartRate] Could not disable torch: $e');
-    }
+  void _stopImageStream() {
+    _cameraController?.stopImageStream();
   }
 
   void _toggleMeasurement() {
@@ -110,74 +162,52 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
   }
 
   void _startMeasurement() async {
-    if (!_torchAvailable) {
-      setState(() => _error = 'Flashlight not available on this device');
+    if (!_cameraInitialized || _cameraController == null) {
+      setState(() => _error = 'Camera not ready. Please restart the app.');
       return;
     }
 
     try {
-      await _enableTorch();
+      // Enable torch to illuminate the fingertip
+      await _cameraController!.setFlashMode(FlashMode.torch);
+
+      setState(() {
+        _isMeasuring = true;
+        _error = null;
+        _currentBpm = 0;
+        _measurementTime = 0;
+        _bpmHistory.clear();
+        _rawGreenSignal.clear();
+      });
+
+      _heartRateService.startMeasuring();
+
+      // Start camera image stream for PPG signal
+      _startImageStream();
+
+      // Start timer
+      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) return;
+        setState(() => _measurementTime++);
+
+        if (_measurementTime >= _targetDuration) {
+          _stopMeasurement();
+        }
+      });
+
+      HapticFeedback.mediumImpact();
     } catch (e) {
-      // Torch may not be available
+      setState(() => _error = 'Could not start measurement: $e');
     }
-
-    setState(() {
-      _isMeasuring = true;
-      _error = null;
-      _currentBpm = 0;
-      _measurementTime = 0;
-      _bpmHistory.clear();
-      _rawSignal.clear();
-    });
-
-    _heartRateService.startMeasuring();
-
-    // Simulate PPG signal collection using torch + timer
-    // In a real PPG app, the camera would capture the signal
-    // Here we use a guided approach with the torch on
-    _startSignalCollection();
-
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) return;
-      setState(() => _measurementTime++);
-
-      if (_measurementTime >= _targetDuration) {
-        _stopMeasurement();
-      }
-    });
-
-    HapticFeedback.mediumImpact();
-  }
-
-  void _startSignalCollection() {
-    // Pulse the torch slightly to help with measurement
-    // The torch stays on to illuminate the finger
-    // Signal is collected via a timer-based simulation
-    _signalTimer = Timer.periodic(const Duration(milliseconds: 33), (timer) {
-      if (!_isMeasuring) {
-        timer.cancel();
-        return;
-      }
-
-      // Generate a simulated PPG signal based on time
-      // In production, this would come from the camera sensor
-      final t = _measurementTime + (timer.tick * 0.033);
-      final heartRate = 72.0; // Base rate for simulation
-      final signal = sin(2 * pi * heartRate / 60 * t) * 50 +
-          sin(2 * pi * heartRate * 2 / 60 * t) * 10 +
-          Random().nextDouble() * 5;
-
-      _heartRateService.processFrame(signal, signal * 0.95, signal * 0.9);
-    });
   }
 
   void _stopMeasurement() async {
     _timer?.cancel();
-    _signalTimer?.cancel();
     _heartRateService.stopMeasuring();
 
     try {
-      await _disableTorch();
+      _stopImageStream();
+      await _cameraController?.setFlashMode(FlashMode.off);
     } catch (_) {}
 
     _pulseController.stop();
@@ -191,10 +221,9 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
   @override
   void dispose() {
     _timer?.cancel();
-    _signalTimer?.cancel();
     _heartRateService.dispose();
     _pulseController.dispose();
-    _disableTorch();
+    _cameraController?.dispose();
     super.dispose();
   }
 
@@ -211,7 +240,9 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
       ),
       body: _error != null
           ? _buildErrorView()
-          : _buildMainView(),
+          : !_cameraInitialized
+              ? _buildLoadingView()
+              : _buildMainView(),
     );
   }
 
@@ -229,13 +260,26 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
             ElevatedButton.icon(
               onPressed: () {
                 setState(() => _error = null);
-                _checkTorch();
+                _initCamera();
               },
               icon: const Icon(Icons.refresh),
               label: const Text('Try Again'),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingView() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 16),
+          Text('Initializing camera...'),
+        ],
       ),
     );
   }
@@ -249,6 +293,12 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
+          // Camera preview with finger overlay
+          if (_isMeasuring) ...[
+            _buildCameraPreview(),
+            const SizedBox(height: 16),
+          ],
+
           // Instructions
           if (!_isMeasuring && _currentBpm == 0) ...[
             Container(
@@ -259,40 +309,30 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
               ),
               child: Column(
                 children: [
-                  Icon(Icons.flashlight_on, size: 48, color: Colors.red.shade400),
+                  Icon(Icons.fingerprint, size: 48, color: Colors.red.shade400),
                   const SizedBox(height: 12),
                   const Text(
-                    'Place your fingertip over the flashlight',
+                    'Place your fingertip over the camera lens',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'The flashlight will illuminate your fingertip for 30 seconds.\nHold your finger steady over the camera lens for best results.',
+                    'The flashlight will illuminate your fingertip. The camera detects blood volume changes (rPPG) to measure your heart rate.',
                     style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 12),
-                  if (!_torchAvailable)
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700, size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Flashlight not detected. Measurement will use estimated data.',
-                              style: TextStyle(color: Colors.orange.shade700, fontSize: 12),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _instructionStep('1', 'Cover camera'),
+                      const SizedBox(width: 12),
+                      _instructionStep('2', 'Flashlight on'),
+                      const SizedBox(width: 12),
+                      _instructionStep('3', 'Stay still'),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -325,12 +365,8 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
                   Icon(Icons.lightbulb_outline, color: Colors.orange.shade700, size: 18),
                   const SizedBox(width: 6),
                   Text(
-                    'Keep your finger still on the flashlight',
-                    style: TextStyle(
-                      color: Colors.orange.shade700,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    'Keep your finger still on the camera',
+                    style: TextStyle(color: Colors.orange.shade700, fontSize: 13, fontWeight: FontWeight.w500),
                   ),
                 ],
               ),
@@ -344,6 +380,12 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
 
           const SizedBox(height: 24),
 
+          // Raw PPG signal graph
+          if (_rawGreenSignal.length > 10 && !_isMeasuring) ...[
+            _buildRawSignalGraph(bpmColor, isDark),
+            const SizedBox(height: 16),
+          ],
+
           // BPM History graph
           if (_bpmHistory.isNotEmpty) ...[
             _buildHistoryGraph(bpmColor, isDark),
@@ -354,6 +396,76 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
           if (!_isMeasuring && _currentBpm > 0) ...[
             _buildResultCard(bpmColor, isDark),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _instructionStep(String number, String label) {
+    return Column(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: Colors.red.shade400,
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Text(number, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+      ],
+    );
+  }
+
+  Widget _buildCameraPreview() {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      height: 120,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.red.shade200, width: 2),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Camera preview (mirrored to show finger placement)
+          Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()..scale(-1.0, 1.0),
+            child: CameraPreview(_cameraController!),
+          ),
+          // Finger placement guide
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 2),
+            ),
+          ),
+          // Label
+          Positioned(
+            bottom: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Text(
+                'Place finger here',
+                style: TextStyle(color: Colors.white, fontSize: 11),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -392,34 +504,22 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
                 if (_currentBpm > 0) ...[
                   Text(
                     _currentBpm.toStringAsFixed(0),
-                    style: TextStyle(
-                      fontSize: 56,
-                      fontWeight: FontWeight.bold,
-                      color: bpmColor,
-                      height: 1,
-                    ),
+                    style: TextStyle(fontSize: 56, fontWeight: FontWeight.bold, color: bpmColor, height: 1),
                   ),
                   Text(
                     'BPM',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: bpmColor.withValues(alpha: 0.7),
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: bpmColor.withValues(alpha: 0.7)),
                   ),
                 ] else ...[
                   Icon(
-                    _isMeasuring ? Icons.flashlight_on : Icons.favorite,
+                    _isMeasuring ? Icons.favorite : Icons.favorite_border,
                     size: 48,
-                    color: _isMeasuring ? Colors.orange.shade400 : Colors.grey.shade400,
+                    color: _isMeasuring ? Colors.red.shade300 : Colors.grey.shade400,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _isMeasuring ? 'Measuring...' : 'Ready',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: _isMeasuring ? Colors.orange.shade600 : Colors.grey.shade500,
-                    ),
+                    _isMeasuring ? 'Detecting...' : 'Ready',
+                    style: TextStyle(fontSize: 16, color: _isMeasuring ? Colors.red.shade400 : Colors.grey.shade500),
                   ),
                 ],
               ],
@@ -446,11 +546,7 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
           Center(
             child: Text(
               '${(_targetDuration - _measurementTime)}s',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color),
             ),
           ),
         ],
@@ -464,10 +560,7 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
       height: 56,
       child: ElevatedButton.icon(
         onPressed: _toggleMeasurement,
-        icon: Icon(
-          _isMeasuring ? Icons.stop_rounded : Icons.favorite_rounded,
-          size: 24,
-        ),
+        icon: Icon(_isMeasuring ? Icons.stop_rounded : Icons.favorite_rounded, size: 24),
         label: Text(
           _isMeasuring ? 'Stop Measurement' : 'Start Heart Rate Check',
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -475,11 +568,52 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
         style: ElevatedButton.styleFrom(
           backgroundColor: _isMeasuring ? Colors.red : bpmColor,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           elevation: 2,
         ),
+      ),
+    );
+  }
+
+  Widget _buildRawSignalGraph(Color color, bool isDark) {
+    final signal = _rawGreenSignal;
+    if (signal.length < 10) return const SizedBox.shrink();
+
+    final minY = signal.reduce(min);
+    final maxY = signal.reduce(max);
+    final range = maxY - minY;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1F2937) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.show_chart, size: 16, color: color),
+              const SizedBox(width: 6),
+              const Text('Raw PPG Signal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 80,
+            child: CustomPaint(
+              size: Size.infinite,
+              painter: _SignalGraphPainter(
+                data: signal,
+                color: color,
+                minY: range > 0 ? minY - 2 : minY,
+                maxY: range > 0 ? maxY + 2 : maxY + 5,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -496,23 +630,24 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1F2937) : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
-        ),
+        border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Heart Rate Timeline',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          Row(
+            children: [
+              Icon(Icons.timeline, size: 16, color: bpmColor),
+              const SizedBox(width: 6),
+              const Text('Heart Rate Timeline', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            ],
           ),
           const SizedBox(height: 12),
           SizedBox(
             height: 100,
             child: CustomPaint(
               size: Size.infinite,
-              painter: _BpmGraphPainter(
+              painter: _SignalGraphPainter(
                 data: _bpmHistory,
                 color: bpmColor,
                 minY: range > 0 ? minY - 5 : minY,
@@ -544,26 +679,12 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
             children: [
               Icon(Icons.info_outline, color: bpmColor, size: 20),
               const SizedBox(width: 8),
-              Text(
-                category,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: bpmColor,
-                ),
-              ),
+              Text(category, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: bpmColor)),
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            advice,
-            style: TextStyle(
-              fontSize: 14,
-              color: isDark ? Colors.white70 : Colors.black87,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 12),
+          Text(advice, style: TextStyle(fontSize: 14, color: isDark ? Colors.white70 : Colors.black87, height: 1.4)),
+          const SizedBox(height: 16),
           Row(
             children: [
               _statChip('Min', '${_bpmHistory.reduce(min).toStringAsFixed(0)}', Colors.blue),
@@ -572,15 +693,6 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
               const SizedBox(width: 8),
               _statChip('Avg', '${(_bpmHistory.reduce((a, b) => a + b) / _bpmHistory.length).toStringAsFixed(0)}', Colors.green),
             ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Note: For accurate readings, place your fingertip over the camera lens with the flashlight on. This measurement uses signal estimation.',
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey.shade500,
-              fontStyle: FontStyle.italic,
-            ),
           ),
         ],
       ),
@@ -607,14 +719,14 @@ class _HeartRateMonitorPageState extends State<HeartRateMonitorPage>
   }
 }
 
-/// Custom painter for the BPM line graph
-class _BpmGraphPainter extends CustomPainter {
+/// Custom painter for both raw signal and BPM graphs
+class _SignalGraphPainter extends CustomPainter {
   final List<double> data;
   final Color color;
   final double minY;
   final double maxY;
 
-  _BpmGraphPainter({
+  _SignalGraphPainter({
     required this.data,
     required this.color,
     required this.minY,
@@ -627,7 +739,7 @@ class _BpmGraphPainter extends CustomPainter {
 
     final paint = Paint()
       ..color = color
-      ..strokeWidth = 2.5
+      ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
@@ -642,11 +754,13 @@ class _BpmGraphPainter extends CustomPainter {
     final fillPath = Path();
     final range = maxY - minY;
 
-    final step = size.width / (data.length - 1);
+    // Use last 200 points max for display
+    final displayData = data.length > 200 ? data.sublist(data.length - 200) : data;
+    final step = size.width / (displayData.length - 1);
 
-    for (int i = 0; i < data.length; i++) {
+    for (int i = 0; i < displayData.length; i++) {
       final x = i * step;
-      final y = size.height - ((data[i] - minY) / range * size.height);
+      final y = size.height - ((displayData[i] - minY) / range * size.height).clamp(0.0, size.height);
 
       if (i == 0) {
         path.moveTo(x, y);
@@ -665,22 +779,14 @@ class _BpmGraphPainter extends CustomPainter {
     canvas.drawPath(path, paint);
 
     // Draw last point as a dot
-    if (data.isNotEmpty) {
-      final lastX = (data.length - 1) * step;
-      final lastY = size.height - ((data.last - minY) / range * size.height);
-      canvas.drawCircle(
-        Offset(lastX, lastY),
-        5,
-        Paint()..color = color,
-      );
-      canvas.drawCircle(
-        Offset(lastX, lastY),
-        3,
-        Paint()..color = Colors.white,
-      );
+    if (displayData.isNotEmpty) {
+      final lastX = (displayData.length - 1) * step;
+      final lastY = size.height - ((displayData.last - minY) / range * size.height).clamp(0.0, size.height);
+      canvas.drawCircle(Offset(lastX, lastY), 5, Paint()..color = color);
+      canvas.drawCircle(Offset(lastX, lastY), 3, Paint()..color = Colors.white);
     }
   }
 
   @override
-  bool shouldRepaint(covariant _BpmGraphPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _SignalGraphPainter oldDelegate) => true;
 }
