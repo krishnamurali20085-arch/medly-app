@@ -1945,15 +1945,26 @@ class _MedlyHomePageState extends State<MedlyHomePage>
       final radius = 15000; // 15 km radius for better coverage
 
       final query = '''
-[out:json][timeout:20];
+[out:json][timeout:30];
 (
   node["amenity"="hospital"](around:$radius,$lat,$lon);
-  node["amenity"="pharmacy"](around:$radius,$lat,$lon);
-  node["healthcare"="ambulance"](around:$radius,$lat,$lon);
-  node["healthcare"="clinic"](around:$radius,$lat,$lon);
   way["amenity"="hospital"](around:$radius,$lat,$lon);
-  way["amenity"="pharmacy"](around:$radius,$lat,$lon);
   relation["amenity"="hospital"](around:$radius,$lat,$lon);
+  node["healthcare"="hospital"](around:$radius,$lat,$lon);
+  way["healthcare"="hospital"](around:$radius,$lat,$lon);
+  node["amenity"="pharmacy"](around:$radius,$lat,$lon);
+  way["amenity"="pharmacy"](around:$radius,$lat,$lon);
+  node["amenity"="chemist"](around:$radius,$lat,$lon);
+  way["amenity"="chemist"](around:$radius,$lat,$lon);
+  node["healthcare"="pharmacy"](around:$radius,$lat,$lon);
+  node["healthcare"="ambulance"](around:$radius,$lat,$lon);
+  node["emergency"="ambulance_station"](around:$radius,$lat,$lon);
+  way["emergency"="ambulance_station"](around:$radius,$lat,$lon);
+  node["healthcare"="clinic"](around:$radius,$lat,$lon);
+  way["healthcare"="clinic"](around:$radius,$lat,$lon);
+  node["amenity"="clinic"](around:$radius,$lat,$lon);
+  way["amenity"="clinic"](around:$radius,$lat,$lon);
+  node["healthcare"="doctor"](around:$radius,$lat,$lon);
 );
 out center 100;
 ''';
@@ -1970,14 +1981,22 @@ out center 100;
 
         for (final el in elements) {
           final name = el['tags']?['name'] ?? el['tags']?['operator'] ?? 'Unknown';
-          final amenity = el['tags']?['amenity'] ?? el['tags']?['healthcare'] ?? '';
+          final amenity = el['tags']?['amenity'] ?? '';
+          final healthcare = el['tags']?['healthcare'] ?? '';
+          final emergency = el['tags']?['emergency'] ?? '';
           String type;
-          if (amenity == 'hospital') {
+          if (amenity == 'hospital' || healthcare == 'hospital') {
             type = 'Hospital';
-          } else if (amenity == 'pharmacy') {
+          } else if (amenity == 'pharmacy' || amenity == 'chemist' || healthcare == 'pharmacy') {
             type = 'Pharmacy';
-          } else {
+          } else if (amenity == 'clinic' || healthcare == 'clinic') {
+            type = 'Hospital';
+          } else if (healthcare == 'doctor') {
+            type = 'Hospital';
+          } else if (healthcare == 'ambulance' || emergency == 'ambulance_station') {
             type = 'Ambulance';
+          } else {
+            type = 'Hospital';
           }
           final elLat = el['lat'] ?? el['center']?['lat'];
           final elLon = el['lon'] ?? el['center']?['lon'];
@@ -6149,7 +6168,29 @@ class _ClinicMapPageState extends State<ClinicMapPage> with SingleTickerProvider
       });
 
       final radius = 15000; // 15 km radius
-      final query = '[out:json][timeout:25];(node["amenity"="hospital"](around:$radius,$finalLat,$finalLon);node["amenity"="pharmacy"](around:$radius,$finalLat,$finalLon);node["healthcare"="ambulance"](around:$radius,$finalLat,$finalLon);node["healthcare"="clinic"](around:$radius,$finalLat,$finalLon);way["amenity"="hospital"](around:$radius,$finalLat,$finalLon);way["amenity"="pharmacy"](around:$radius,$finalLat,$finalLon););out center 100;';
+      final query = '''[out:json][timeout:30];
+(
+  node["amenity"="hospital"](around:$radius,$finalLat,$finalLon);
+  way["amenity"="hospital"](around:$radius,$finalLat,$finalLon);
+  relation["amenity"="hospital"](around:$radius,$finalLat,$finalLon);
+  node["healthcare"="hospital"](around:$radius,$finalLat,$finalLon);
+  way["healthcare"="hospital"](around:$radius,$finalLat,$finalLon);
+  node["amenity"="pharmacy"](around:$radius,$finalLat,$finalLon);
+  way["amenity"="pharmacy"](around:$radius,$finalLat,$finalLon);
+  node["amenity"="chemist"](around:$radius,$finalLat,$finalLon);
+  way["amenity"="chemist"](around:$radius,$finalLat,$finalLon);
+  node["healthcare"="pharmacy"](around:$radius,$finalLat,$finalLon);
+  node["healthcare"="ambulance"](around:$radius,$finalLat,$finalLon);
+  node["emergency"="ambulance_station"](around:$radius,$finalLat,$finalLon);
+  way["emergency"="ambulance_station"](around:$radius,$finalLat,$finalLon);
+  node["healthcare"="clinic"](around:$radius,$finalLat,$finalLon);
+  way["healthcare"="clinic"](around:$radius,$finalLat,$finalLon);
+  node["amenity"="clinic"](around:$radius,$finalLat,$finalLon);
+  way["amenity"="clinic"](around:$radius,$finalLat,$finalLon);
+  node["healthcare"="doctor"](around:$radius,$finalLat,$finalLon);
+);
+out center 100;
+''';
 
       // Try primary server, fallback to backup
       http.Response? response;
@@ -6181,14 +6222,22 @@ class _ClinicMapPageState extends State<ClinicMapPage> with SingleTickerProvider
 
         for (final el in elements) {
           final name = el['tags']?['name'] ?? el['tags']?['operator'] ?? 'Unknown';
-          final amenity = el['tags']?['amenity'] ?? el['tags']?['healthcare'] ?? '';
+          final amenity = el['tags']?['amenity'] ?? '';
+          final healthcare = el['tags']?['healthcare'] ?? '';
+          final emergency = el['tags']?['emergency'] ?? '';
           String type;
-          if (amenity == 'hospital') {
+          if (amenity == 'hospital' || healthcare == 'hospital') {
             type = 'Hospital';
-          } else if (amenity == 'pharmacy') {
+          } else if (amenity == 'pharmacy' || amenity == 'chemist' || healthcare == 'pharmacy') {
             type = 'Pharmacy';
-          } else {
+          } else if (amenity == 'clinic' || healthcare == 'clinic') {
+            type = 'Hospital';
+          } else if (healthcare == 'doctor') {
+            type = 'Hospital';
+          } else if (healthcare == 'ambulance' || emergency == 'ambulance_station') {
             type = 'Ambulance';
+          } else {
+            type = 'Hospital';
           }
           final elLat = el['lat'] ?? el['center']?['lat'];
           final elLon = el['lon'] ?? el['center']?['lon'];
