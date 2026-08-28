@@ -30,7 +30,6 @@ import 'services/offline_service.dart';
 import 'services/exercise_service.dart';
 import 'services/heart_rate_service.dart';
 import 'services/translation_service.dart';
-import 'heart_rate_monitor_page.dart';
 import 'bluetooth_scan_page.dart';
 import 'services/bluetooth_hr_service.dart';
 
@@ -3462,76 +3461,6 @@ out center 100;
             ),
           ),
         ),
-        const SizedBox(height: 18),
-
-        // Heart Rate Monitor button
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () async {
-              final bpm = await Navigator.of(context).push<double>(
-                MaterialPageRoute(
-                  builder: (_) => const HeartRateMonitorPage(),
-                ),
-              );
-              // Auto-save measured heart rate to today's health snapshot
-              if (bpm != null && bpm > 0) {
-                setState(() {
-                  _healthMetrics[2] = HealthMetric(
-                    label: 'Heart Rate',
-                    value: bpm.toStringAsFixed(0),
-                    unit: 'bpm',
-                    color: Colors.orange,
-                  );
-                });
-                // Save to database
-                try {
-                  await DatabaseService.saveHealthSnapshot(
-                    patientName: _selectedPatientName,
-                    dateKey: _todayDateKey,
-                    bloodPressure: '',
-                    bloodSugar: '',
-                    heartRate: bpm.toStringAsFixed(0),
-                    sleepHours: '',
-                    steps: _todaySteps,
-                  );
-                } catch (_) {}
-                try {
-                  SupabaseService.syncHealthSnapshot(
-                    patientName: _selectedPatientName,
-                    dateKey: _todayDateKey,
-                    bloodPressure: '',
-                    bloodSugar: '',
-                    heartRate: bpm.toStringAsFixed(0),
-                    sleepHours: '',
-                    steps: _todaySteps,
-                  );
-                } catch (_) {}
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Heart rate ${bpm.toStringAsFixed(0)} bpm saved to today\'s health snapshot'),
-                      backgroundColor: Colors.green,
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                }
-              }
-            },
-            icon: const Icon(Icons.favorite_rounded, size: 18),
-            label: const Text('Heart Rate Monitor', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade50,
-              foregroundColor: Colors.red.shade700,
-              side: BorderSide(color: Colors.red.shade200),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ),
-
         const SizedBox(height: 10),
 
         // Connect Smartwatch button
