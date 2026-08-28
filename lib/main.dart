@@ -42,7 +42,7 @@ Future<void> main() async {
   try {
     await Supabase.initialize(
       url: 'https://yubybmlfmyabqrxssjuu.supabase.co',
-      anonKey: 'sb_publishable_jXPDAby_-o1rE4mjR_hcaw_gLUbIACR',
+      publishableKey: 'sb_publishable_i8q3Sy9oL7zbxGn7wk07GQ_gEciptus',
     );
     print('[Supabase] Initialized successfully');
   } catch (e) {
@@ -6149,24 +6149,30 @@ class _ClinicMapPageState extends State<ClinicMapPage> with SingleTickerProvider
       });
 
       final radius = 15000; // 15 km radius
-      final query = '''
-[out:json][timeout:25];
-(
-  node["amenity"="hospital"](around:$radius,$finalLat,$finalLon);
-  node["amenity"="pharmacy"](around:$radius,$finalLat,$finalLon);
-  node["healthcare"="ambulance"](around:$radius,$finalLat,$finalLon);
-  node["healthcare"="clinic"](around:$radius,$finalLat,$finalLon);
-  way["amenity"="hospital"](around:$radius,$finalLat,$finalLon);
-  way["amenity"="pharmacy"](around:$radius,$finalLat,$finalLon);
-  relation["amenity"="hospital"](around:$radius,$finalLat,$finalLon);
-);
-out center 100;
-''';
+      final query = '[out:json][timeout:25];(node["amenity"="hospital"](around:$radius,$finalLat,$finalLon);node["amenity"="pharmacy"](around:$radius,$finalLat,$finalLon);node["healthcare"="ambulance"](around:$radius,$finalLat,$finalLon);node["healthcare"="clinic"](around:$radius,$finalLat,$finalLon);way["amenity"="hospital"](around:$radius,$finalLat,$finalLon);way["amenity"="pharmacy"](around:$radius,$finalLat,$finalLon););out center 100;';
 
-      final response = await http.post(
-        Uri.parse('https://overpass-api.de/api/interpreter'),
-        body: {'data': query},
-      ).timeout(const Duration(seconds: 30));
+      // Try primary server, fallback to backup
+      http.Response? response;
+      final servers = [
+        'https://overpass-api.de/api/interpreter',
+        'https://overpass.kumi.systems/api/interpreter',
+        'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+      ];
+      for (final server in servers) {
+        try {
+          response = await http.post(
+            Uri.parse(server),
+            body: {'data': query},
+          ).timeout(const Duration(seconds: 25));
+          if (response.statusCode == 200) break;
+        } catch (_) {
+          continue;
+        }
+      }
+      if (response == null || response.statusCode != 200) {
+        if (mounted) setState(() {_loadingServices = false; _services = [];});
+        return;
+      }
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
