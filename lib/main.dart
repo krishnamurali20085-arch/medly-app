@@ -1586,6 +1586,9 @@ class _MedlyHomePageState extends State<MedlyHomePage>
   // Screen time tracking
   DateTime? _appOpenTime;
   int _screenTimeMinutesToday = 0;
+
+  // Exercise checkbox selection
+  final Set<String> _selectedExercises = {};
   String _todayDateKey = '';
 
   // Step counter — uses hardware pedometer sensor
@@ -3820,14 +3823,15 @@ out center 100;
                     ],
                   ),
                 ),
-                // Exercise cards
+                // Exercise cards with checkboxes
                 ...exercises.map((ex) {
                   final isDone = completedNames.contains(ex['name']);
+                  final isSelected = _selectedExercises.contains(ex['name']);
                   return Card(
                     margin: const EdgeInsets.only(bottom: 10),
                     color: isDone
                         ? (isDark ? const Color(0xFF1A3A2A) : const Color(0xFFE8F5E9))
-                        : null,
+                        : (isSelected ? (isDark ? const Color(0xFF1A2A4A) : const Color(0xFFE8EAF6)) : null),
                     child: ListTile(
                       leading: Text(ex['icon'] ?? '🏃', style: const TextStyle(fontSize: 28)),
                       title: Text(
@@ -3835,24 +3839,23 @@ out center 100;
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           decoration: isDone ? TextDecoration.lineThrough : null,
+                          color: isDone ? Colors.green : null,
                         ),
                       ),
                       subtitle: Text('${ex['duration']} • ${ex['desc']}'),
                       trailing: isDone
                           ? const Icon(Icons.check_circle, color: Colors.green, size: 28)
-                          : IconButton(
-                              icon: const Icon(Icons.check_circle_outline, size: 28),
-                              onPressed: () async {
-                                await DatabaseService.saveExerciseCompletion(
-                                  email: widget.email,
-                                  exerciseName: ex['name']!,
-                                  dateKey: todayKey,
-                                );
-                                await DatabaseService.updateStreak(
-                                  email: widget.email,
-                                  todayKey: todayKey,
-                                );
-                                setState(() {});
+                          : Checkbox(
+                              value: isSelected,
+                              activeColor: const Color(0xFF6C63FF),
+                              onChanged: (val) {
+                                setState(() {
+                                  if (val == true) {
+                                    _selectedExercises.add(ex['name']!);
+                                  } else {
+                                    _selectedExercises.remove(ex['name']!);
+                                  }
+                                });
                               },
                             ),
                     ),
@@ -3860,14 +3863,14 @@ out center 100;
                 }),
                 // Submit button
                 const SizedBox(height: 12),
-                if (!allDone)
+                if (!allDone && _selectedExercises.isNotEmpty)
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () async {
-                        // Mark all exercises as done
+                        // Save only checked exercises
                         for (final ex in exercises) {
-                          if (!completedNames.contains(ex['name'])) {
+                          if (_selectedExercises.contains(ex['name']) && !completedNames.contains(ex['name'])) {
                             await DatabaseService.saveExerciseCompletion(
                               email: widget.email,
                               exerciseName: ex['name']!,
@@ -3879,11 +3882,13 @@ out center 100;
                           email: widget.email,
                           todayKey: todayKey,
                         );
+                        final count = _selectedExercises.length;
+                        _selectedExercises.clear();
                         setState(() {});
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(_t('All exercises submitted! Streak updated 🔥')),
+                              content: Text(_t('$count exercise(s) submitted! Streak updated 🔥')),
                               backgroundColor: Colors.green,
                               duration: const Duration(seconds: 2),
                             ),
@@ -3892,7 +3897,7 @@ out center 100;
                       },
                       icon: const Icon(Icons.done_all_rounded, color: Colors.white),
                       label: Text(
-                        _t('Submit All Exercises'),
+                        _t('Submit ${_selectedExercises.length} Exercise(s)'),
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                       ),
                       style: ElevatedButton.styleFrom(
@@ -3901,6 +3906,15 @@ out center 100;
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         elevation: 2,
                       ),
+                    ),
+                  ),
+                if (!allDone && _selectedExercises.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      _t('Check the exercises you completed, then tap Submit'),
+                      style: TextStyle(color: Colors.grey.shade500, fontSize: 13, fontStyle: FontStyle.italic),
+                      textAlign: TextAlign.center,
                     ),
                   ),
                 if (allDone)
