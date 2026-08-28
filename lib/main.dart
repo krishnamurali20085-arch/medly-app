@@ -32,6 +32,7 @@ import 'services/exercise_service.dart';
 import 'services/heart_rate_service.dart';
 import 'services/translation_service.dart';
 import 'bluetooth_scan_page.dart';
+import 'doctor_appointment_page.dart';
 import 'services/bluetooth_hr_service.dart';
 
 Future<void> main() async {
@@ -5112,6 +5113,17 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
                       caregiverName: widget.caregiverName,
                     ),
                   ),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.local_hospital_rounded, color: Colors.red),
+              title: const Text('Doctor Appointments'),
+              subtitle: const Text('Find doctors nearby & video call'),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const DoctorAppointmentPage()),
                 );
               },
             ),
