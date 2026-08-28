@@ -3850,24 +3850,85 @@ out center 100;
     final bmi = bmiData['bmi'] as double;
     final category = bmiData['category'] as String;
     final color = bmiData['color'] as Color;
+    final advice = bmiData['advice'] as String;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    // Simple status label
+    String statusEmoji;
+    String statusText;
+    if (bmi <= 0) {
+      statusEmoji = '❓';
+      statusText = 'No Data';
+    } else if (bmi < 18.5) {
+      statusEmoji = '🦴';
+      statusText = 'Skinny';
+    } else if (bmi < 25) {
+      statusEmoji = '✅';
+      statusText = 'Healthy';
+    } else if (bmi < 30) {
+      statusEmoji = '⚠️';
+      statusText = 'Overweight';
+    } else if (bmi < 35) {
+      statusEmoji = '🔴';
+      statusText = 'Obese';
+    } else {
+      statusEmoji = '🚨';
+      statusText = 'Severely Obese';
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1F2937) : color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        color: isDark ? const Color(0xFF1F2937) : color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('BMI', style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54)),
-          const SizedBox(height: 4),
-          Text(
-            bmi > 0 ? '$bmi ($category)' : 'Not set',
-            style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13),
+          Row(
+            children: [
+              Text(statusEmoji, style: const TextStyle(fontSize: 20)),
+              const SizedBox(width: 8),
+              Text(
+                'BMI: ${bmi > 0 ? bmi.toStringAsFixed(1) : '--'}',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isDark ? Colors.white : Colors.black87),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  statusText,
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: color),
+                ),
+              ),
+            ],
           ),
+          if (bmi > 0) ...[
+            const SizedBox(height: 8),
+            // BMI gauge bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: (bmi / 40).clamp(0.0, 1.0),
+                minHeight: 6,
+                backgroundColor: Colors.grey.shade200,
+                valueColor: AlwaysStoppedAnimation(color),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '$category — $advice',
+              style: TextStyle(fontSize: 11, color: isDark ? Colors.white54 : Colors.black45, height: 1.3),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ],
       ),
     );
