@@ -34,6 +34,7 @@ import 'services/translation_service.dart';
 import 'bluetooth_scan_page.dart';
 import 'doctor_appointment_page.dart';
 import 'services/bluetooth_hr_service.dart';
+import 'services/routing_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -6244,6 +6245,12 @@ class _ClinicMapPageState extends State<ClinicMapPage> with SingleTickerProvider
   int _selectedZoom = 14;
   late AnimationController _pulseController;
 
+  // Route state
+  List<LatLng> _routePoints = [];
+  RouteInfo? _currentRoute;
+  bool _loadingRoute = false;
+  HealthcareService? _selectedService;
+
   @override
   void initState() {
     super.initState();
@@ -6710,6 +6717,17 @@ out center 100;
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.example.medly',
               ),
+              // Route polyline
+              if (_routePoints.length >= 2)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: _routePoints,
+                      strokeWidth: 5.0,
+                      color: const Color(0xFF6C63FF),
+                    ),
+                  ],
+                ),
               MarkerLayer(markers: markers),
               RichAttributionWidget(
                 attributions: [TextSourceAttribution('OpenStreetMap contributors')],
@@ -6877,10 +6895,107 @@ out center 100;
               ),
             ),
           ),
+          // Route info panel
+          if (_currentRoute != null)
+            Positioned(
+              bottom: 16,
+              left: 16,
+              right: 16,
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1F2937) : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 12)],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.route_rounded, color: Color(0xFF6C63FF), size: 22),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _selectedService?.name ?? '',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: _clearRoute,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close, size: 16, color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _routeInfoTile(Icons.straighten, 'Distance', _currentRoute!.distanceText),
+                        _routeInfoTile(Icons.schedule, 'ETA', _currentRoute!.durationText),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              if (_selectedService?.latitude != null && _selectedService?.longitude != null) {
+                                final url = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${_selectedService!.latitude},${_selectedService!.longitude}');
+                                if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
+                              }
+                            },
+                            icon: const Icon(Icons.navigation_rounded, size: 16),
+                            label: const Text('Navigate in Maps'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          // Loading route indicator
+          if (_loadingRoute)
+            const Positioned(
+              bottom: 80,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Card(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                        SizedBox(width: 10),
+                        Text('Calculating route...'),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           // Zoom controls on right side
           Positioned(
             right: 12,
-            bottom: 140,
+            bottom: _currentRoute != null ? 180 : 140,
             child: Column(
               children: [
                 _zoomButton(Icons.add_rounded, () {
@@ -6936,6 +7051,18 @@ out center 100;
     );
   }
 
+  Widget _routeInfoTile(IconData icon, String label, String value) {
+    return Column(
+      children: [
+        Icon(icon, color: const Color(0xFF6C63FF), size: 22),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+        const SizedBox(height: 2),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+      ],
+    );
+  }
+
   Widget _zoomButton(IconData icon, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
@@ -6950,6 +7077,52 @@ out center 100;
         child: Icon(icon, size: 22),
       ),
     );
+  }
+
+  // ---- Route drawing ----
+  Future<void> _showRoute(HealthcareService service) async {
+    if (_center == null || service.latitude == null || service.longitude == null) return;
+    setState(() {
+      _loadingRoute = true;
+      _selectedService = service;
+    });
+
+    final route = await RoutingService.getRoute(
+      _center!,
+      LatLng(service.latitude!, service.longitude!),
+    );
+
+    if (mounted && route != null) {
+      setState(() {
+        _routePoints = route.points;
+        _currentRoute = route;
+        _loadingRoute = false;
+      });
+      // Fit map to show entire route
+      if (route.points.length >= 2 && _mapReady) {
+        final bounds = LatLngBounds.fromPoints(route.points);
+        _mapController.fitCamera(CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.all(60),
+        ));
+      }
+    } else if (mounted) {
+      setState(() {
+        _loadingRoute = false;
+        _selectedService = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not find route. Try Google Maps instead.'), backgroundColor: Colors.orange),
+      );
+    }
+  }
+
+  void _clearRoute() {
+    setState(() {
+      _routePoints = [];
+      _currentRoute = null;
+      _selectedService = null;
+    });
   }
 
   void _showServiceSheet(HealthcareService service) {
@@ -6991,6 +7164,24 @@ out center 100;
               ],
             ),
             const SizedBox(height: 16),
+            // Route button - shows route on map
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _showRoute(service);
+                },
+                icon: const Icon(Icons.route_rounded, size: 18),
+                label: const Text('Show Route on Map'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6C63FF),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
@@ -7001,9 +7192,9 @@ out center 100;
                         if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
                       }
                     },
-                    icon: const Icon(Icons.directions_rounded, size: 18),
-                    label: const Text('Get Directions'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+                    icon: const Icon(Icons.navigation_rounded, size: 18),
+                    label: const Text('Navigate'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
                   ),
                 ),
                 const SizedBox(width: 8),
