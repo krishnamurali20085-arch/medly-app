@@ -31,6 +31,8 @@ import 'services/exercise_service.dart';
 import 'services/heart_rate_service.dart';
 import 'services/translation_service.dart';
 import 'heart_rate_monitor_page.dart';
+import 'bluetooth_scan_page.dart';
+import 'services/bluetooth_hr_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1683,6 +1685,7 @@ class _MedlyHomePageState extends State<MedlyHomePage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _stepCountSubscription?.cancel();
+    _bleHRSubscription?.cancel();
     _medicineNameController.dispose();
     _medicineTimeController.dispose();
     _speechToText.stop();
@@ -3529,6 +3532,40 @@ out center 100;
           ),
         ),
 
+        const SizedBox(height: 10),
+
+        // Connect Smartwatch button
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () async {
+              final connected = await Navigator.of(context).push<bool>(
+                MaterialPageRoute(builder: (_) => const BluetoothScanPage()),
+              );
+              if (connected == true && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Smartwatch connected! Heart rate will stream automatically.'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+                // Start listening to heart rate from watch
+                _startBluetoothHR();
+              }
+            },
+            icon: const Icon(Icons.watch_rounded, size: 18),
+            label: const Text('Connect Smartwatch', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF6C63FF),
+              side: const BorderSide(color: Color(0xFF6C63FF), width: 1.5),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+
         const SizedBox(height: 12),
 
         // Nearby care - Map button
@@ -3962,6 +3999,34 @@ out center 100;
         await launchUrl(url);
       }
     }
+  }
+
+  StreamSubscription<int>? _bleHRSubscription;
+  void _startBluetoothHR() {
+    final bleService = BluetoothHRService();
+    _bleHRSubscription?.cancel();
+    _bleHRSubscription = bleService.heartRateStream.listen((hr) {
+      if (mounted && hr > 0) {
+        setState(() {
+          _healthMetrics[2] = HealthMetric(
+            label: 'Heart Rate',
+            value: '$hr',
+            unit: 'bpm',
+            color: Colors.orange,
+          );
+        });
+        // Auto-save to health snapshot every reading
+        DatabaseService.saveHealthSnapshot(
+          patientName: _selectedPatientName,
+          dateKey: _todayDateKey,
+          bloodPressure: '',
+          bloodSugar: '',
+          heartRate: '$hr',
+          sleepHours: '',
+          steps: _todaySteps,
+        );
+      }
+    });
   }
 
   Widget _infoPill(String label, String value) {
