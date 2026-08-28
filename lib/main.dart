@@ -17,6 +17,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:pedometer/pedometer.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 
 import 'models/health_record.dart';
 import 'services/firebase_service.dart';
@@ -1596,14 +1597,19 @@ class _MedlyHomePageState extends State<MedlyHomePage>
   String? _profilePhotoPath;
   String _todayDateKey = '';
 
-  // Step counter — uses hardware pedometer sensor
-  // The sensor gives cumulative steps since device boot and keeps
-  // counting even when the app is closed. We snapshot it on every
-  // resume to capture steps taken while the app was in the background.
+  // Step counter — hardware pedometer + accelerometer fallback
   int _todaySteps = 0;
   StreamSubscription<StepCount>? _stepCountSubscription;
-  int _stepOffset = 0; // Steps at start of today (sensor value)
-  int _lastSensorTotal = 0; // Last known total from sensor
+  StreamSubscription<AccelerometerEvent>? _accelSubscription;
+  int _stepOffset = 0;
+  int _lastSensorTotal = 0;
+  bool _pedometerAvailable = false;
+  // Accelerometer-based step detection
+  double _lastAccelMagnitude = 0;
+  int _accelStepCount = 0;
+  static const double _stepThreshold = 12.0; // m/s² threshold for step detection
+  static const int _stepCooldownMs = 350; // min ms between steps
+  DateTime _lastStepTime = DateTime.fromMillisecondsSinceEpoch(0);
 
   String _t(String value) => AppLocalizations(_selectedLanguage).text(value);
 
@@ -1684,6 +1690,7 @@ class _MedlyHomePageState extends State<MedlyHomePage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _stepCountSubscription?.cancel();
+    _accelSubscription?.cancel();
     _bleHRSubscription?.cancel();
     _medicineNameController.dispose();
     _medicineTimeController.dispose();
@@ -1724,31 +1731,87 @@ class _MedlyHomePageState extends State<MedlyHomePage>
     // Nothing extra needed here.
   }
 
-  // ---- Step counter using device pedometer sensor ----
+  // ---- Step counter: pedometer + accelerometer fallback ----
   Future<void> _initStepCounter() async {
-    // Load previously saved step data for today
     final prefs = await SharedPreferences.getInstance();
     _stepOffset = prefs.getInt('step_offset_$_todayDateKey') ?? 0;
     _lastSensorTotal = prefs.getInt('last_sensor_total_$_todayDateKey') ?? 0;
     _todaySteps = prefs.getInt('today_steps_$_todayDateKey') ?? 0;
     if (_todaySteps > 0) setState(() {});
 
+    // Try hardware pedometer first
     try {
       _stepCountSubscription = Pedometer.stepCountStream.listen(
         (StepCount event) {
           if (!mounted) return;
-          final totalSteps = event.steps;
-          _updateStepCount(totalSteps);
+          _pedometerAvailable = true;
+          _updateStepCount(event.steps);
         },
         onError: (error) {
-          print('[StepCounter] Stream error: $error');
+          print('[StepCounter] Pedometer error: $error');
+          _pedometerAvailable = false;
+          _startAccelerometerFallback();
         },
         cancelOnError: false,
       );
       print('[StepCounter] Pedometer stream started');
     } catch (e) {
-      print('[StepCounter] Init error: $e');
+      print('[StepCounter] Pedometer init error: $e');
+      _startAccelerometerFallback();
     }
+
+    // If pedometer doesn't emit within 3 seconds, use accelerometer
+    Future.delayed(const Duration(seconds: 3), () {
+      if (!_pedometerAvailable && mounted) {
+        print('[StepCounter] Pedometer not available, using accelerometer');
+        _startAccelerometerFallback();
+      }
+    });
+  }
+
+  void _startAccelerometerFallback() {
+    if (_accelSubscription != null) return; // Already started
+    try {
+      _accelSubscription = accelerometerEventStream(samplingPeriod: SensorInterval.gameInterval).listen(
+        (AccelerometerEvent event) {
+          if (!mounted) return;
+          _detectStepFromAccel(event);
+        },
+        onError: (e) {
+          print('[StepCounter] Accelerometer error: $e');
+        },
+      );
+      print('[StepCounter] Accelerometer fallback started');
+    } catch (e) {
+      print('[StepCounter] Accelerometer init error: $e');
+    }
+  }
+
+  void _detectStepFromAccel(AccelerometerEvent event) {
+    final magnitude = math.sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
+    final now = DateTime.now();
+    final timeSinceLastStep = now.difference(_lastStepTime).inMilliseconds;
+
+    // Detect a step: magnitude spikes above threshold with cooldown
+    if (magnitude > _stepThreshold &&
+        _lastAccelMagnitude <= _stepThreshold &&
+        timeSinceLastStep > _stepCooldownMs) {
+      _accelStepCount++;
+      _lastStepTime = now;
+      // Update total steps (accel steps + any previously saved)
+      final prefs = SharedPreferences.getInstance();
+      prefs.then((p) {
+        final savedAccelOffset = p.getInt('accel_offset_$_todayDateKey') ?? 0;
+        if (savedAccelOffset == 0 && _accelStepCount == 1) {
+          p.setInt('accel_offset_$_todayDateKey', 0);
+        }
+      });
+      if (mounted) {
+        setState(() => _todaySteps++);
+        _saveStepCount();
+      }
+    }
+    _lastAccelMagnitude = magnitude;
   }
 
   void _updateStepCount(int totalSteps) async {
