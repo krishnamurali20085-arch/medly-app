@@ -1646,6 +1646,11 @@ class _MedlyHomePageState extends State<MedlyHomePage>
   int _waterGoal = 8; // default 8 glasses = 2 liters
   static const int _mlPerGlass = 250;
 
+  // AI usage limit: 10 non-health queries per day
+  int _aiGeneralUsageToday = 0;
+  static const int _aiGeneralLimit = 10;
+  String _aiUsageDateKey = '';
+
   String _t(String value) => AppLocalizations(_selectedLanguage).text(value);
 
   @override
@@ -1776,6 +1781,16 @@ class _MedlyHomePageState extends State<MedlyHomePage>
     _stepGoal = prefs.getInt('step_goal') ?? 10000;
     _waterGlasses = prefs.getInt('water_glasses_$_todayDateKey') ?? 0;
     _waterGoal = prefs.getInt('water_goal') ?? 8;
+    // Load AI usage counter
+    _aiUsageDateKey = _todayDateKey;
+    final savedAiDate = prefs.getString('ai_usage_date') ?? '';
+    if (savedAiDate == _todayDateKey) {
+      _aiGeneralUsageToday = prefs.getInt('ai_general_usage') ?? 0;
+    } else {
+      _aiGeneralUsageToday = 0;
+      prefs.setString('ai_usage_date', _todayDateKey);
+      prefs.setInt('ai_general_usage', 0);
+    }
     if (_todaySteps > 0 || _waterGlasses > 0) setState(() {});
 
     // Try hardware pedometer first
@@ -2596,6 +2611,33 @@ out center 100;
                       ],
                     ),
                   ),
+                  const SizedBox(height: 6),
+                  // Usage counter
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _aiGeneralUsageToday >= _aiGeneralLimit ? Colors.red.withValues(alpha: 0.08) : Colors.green.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _aiGeneralUsageToday >= _aiGeneralLimit ? Icons.lock_rounded : Icons.all_inclusive_rounded,
+                          size: 14,
+                          color: _aiGeneralUsageToday >= _aiGeneralLimit ? Colors.red : Colors.green,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${_t('Health')} ${_t('unlimited')} 💚 • ${_t('General')}: ${_aiGeneralLimit - _aiGeneralUsageToday}/${_aiGeneralLimit} ${_t('left')}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: _aiGeneralUsageToday >= _aiGeneralLimit ? Colors.red : Colors.green.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: symptomController,
@@ -2770,27 +2812,66 @@ out center 100;
     }
   }
 
+  /// Check if a query is health-related (unlimited) or general (limited to 10/day)
+  bool _isHealthRelated(String query) {
+    final lower = query.toLowerCase();
+    final healthKeywords = [
+      'health', 'doctor', 'medicine', 'symptom', 'pain', 'fever', 'cold', 'cough',
+      'allergy', 'allergic', 'rash', 'wound', 'bleeding', 'injury', 'fracture',
+      'headache', 'migraine', 'stomach', 'nausea', 'vomit', 'diarrhea',
+      'blood', 'pressure', 'sugar', 'diabetes', 'heart', 'breathing',
+      'asthma', 'infection', 'virus', 'bacteria', 'antibiotic',
+      'first aid', 'emergency', 'hospital', 'clinic', 'pharmacy',
+      'prescription', 'dosage', 'treatment', 'therapy', 'surgery',
+      'diet', 'nutrition', 'vitamin', 'protein', 'calorie',
+      'exercise', 'workout', 'yoga', 'meditation', 'sleep',
+      'mental health', 'anxiety', 'depression', 'stress',
+      'pregnancy', 'baby', 'child', 'elderly', 'senior',
+      'vaccine', 'immunization', 'covid', 'flu', 'pandemic',
+      ' BMI', 'weight', 'height', 'obese', 'underweight',
+      'healthcare', 'medical', 'physician', 'nurse', 'ambulance',
+      'aaraaikiri', 'marundu', 'maruthuvam', 'nejaram',
+      'అనారోగ్యం', 'మందు', 'వైద్యం', 'జ్వరం',
+      'ಆರೋಗ್ಯ', 'ಮದ್ದು', 'ವೈದ್ಯಕೀಯ', 'ಜ್ವರ',
+      'ആരോഗ്യം', 'മരുന്ന്', 'വൈദ്യം', 'പനി',
+      'स्वास्थ्य', 'दवा', 'चिकित्सा', 'बुखार',
+      'आरोग्य', 'औषध', 'उपचार', 'ताप',
+      'صحت', 'دوا', 'طب', 'بخار',
+      'sant\u00E9', 'm\u00E9decin', 'm\u00E9dicament', 'fi\u00E8vre',
+      '健康', '医者', '薬', '熱',
+    ];
+    return healthKeywords.any((kw) => lower.contains(kw));
+  }
+
   Future<String> _generateAiGuidance(String symptoms) async {
-    // Determine target language for response
     final targetLang = _selectedLanguage;
     final langCode = TranslationService.getLanguageCode(targetLang);
+    final isHealth = _isHealthRelated(symptoms);
 
-    // Gemini API (key bundled in app, not visible to users)
-    const geminiApiKey = 'AIzaSyDummyReplaceMe'; // Replace with real key
+    // Check usage limit for non-health queries
+    if (!isHealth && _aiGeneralUsageToday >= _aiGeneralLimit) {
+      final remaining = _aiGeneralLimit - _aiGeneralUsageToday;
+      return '${_t('Daily AI limit reached')} ($_aiGeneralLimit/${_t('general queries used')}).\n\n${_t('You have used all your general queries for today.')}\n\n${_t('Health-related questions are always free and unlimited')} 💚\n\n${_t('Try asking about health symptoms, first aid, medicine, or diet instead.')}';
+    }
+
+    // Gemini API
+    const geminiApiKey = 'AIzaSyDummyReplaceMe';
     try {
       if (geminiApiKey.isNotEmpty && !geminiApiKey.startsWith('AIzaSyDummy')) {
+        final systemPrompt = isHealth
+            ? 'You are Medly, a smart healthcare assistant. The user asks: "$symptoms". IMPORTANT: Respond entirely in ${_selectedLanguage} language (language code: $langCode). If it is a health question, provide: 1) What this could indicate, 2) Urgency level, 3) First aid steps if applicable, 4) When to see a doctor. Include disclaimer that this is not a substitute for professional medical advice. Be concise but thorough. Use simple, clear ${_selectedLanguage} that anyone can understand. For general questions, answer helpfully and concisely in the user\'s language.'
+            : 'You are Medly, a friendly AI assistant. The user asks: "$symptoms". IMPORTANT: Respond entirely in ${_selectedLanguage} language (language code: $langCode). Answer the question helpfully and concisely. Be friendly, accurate, and clear. If it is a math question, show the calculation and answer. If it is a general knowledge question, provide a clear answer. Use simple, clear ${_selectedLanguage} that anyone can understand. Keep responses concise but complete.';
+
         final response = await http.post(
           Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$geminiApiKey'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             'contents': [{
-              'parts': [{
-                'text': 'You are Medly, a smart healthcare assistant. The user describes: "$symptoms". IMPORTANT: Respond entirely in ${_selectedLanguage} language (language code: $langCode). Provide helpful health guidance including: 1) What this could indicate, 2) Urgency level (low/moderate/high/emergency), 3) First aid steps if applicable, 4) When to see a doctor. Be concise but thorough. Include disclaimer that this is not a substitute for professional medical advice. Use simple, clear ${_selectedLanguage} that anyone can understand.'
-              }]
+              'parts': [{'text': systemPrompt}]
             }],
             'generationConfig': {
               'temperature': 0.7,
-              'maxOutputTokens': 500,
+              'maxOutputTokens': isHealth ? 500 : 800,
             }
           }),
         ).timeout(const Duration(seconds: 15));
@@ -2798,18 +2879,24 @@ out center 100;
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
           final text = data['candidates']?[0]?['content']?['parts']?[0]?['text'];
-          if (text != null && text.isNotEmpty) return text;
+          if (text != null && text.isNotEmpty) {
+            // Count non-health usage
+            if (!isHealth) {
+              _aiGeneralUsageToday++;
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setInt('ai_general_usage', _aiGeneralUsageToday);
+              await prefs.setString('ai_usage_date', _todayDateKey);
+            }
+            return text;
+          }
         }
       }
     } catch (_) {}
 
-    // Fallback to enhanced local knowledge — translate to user's language
+    // Fallback
     String guidance = _getLocalGuidance(symptoms);
     if (targetLang != 'English') {
-      guidance = await TranslationService.translate(
-        text: guidance,
-        targetLanguage: targetLang,
-      );
+      guidance = await TranslationService.translate(text: guidance, targetLanguage: targetLang);
     }
     return guidance;
   }
