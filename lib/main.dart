@@ -46,8 +46,8 @@ Future<void> main() async {
   // Initialize Supabase cloud database
   try {
     await Supabase.initialize(
-      url: 'https://guomxsumdtkjcwipafdt.supabase.co',
-      publishableKey: 'sb_publishable_i8q3Sy9oL7zbxGn7wk07GQ_gEciptus',
+      url: 'https://ofslmohemrqxmwsdtchw.supabase.co',
+      publishableKey: 'sb_publishable_8YAGFXyy5uyuGMc4KLW75A_g3NGIENR',
     );
     print('[Supabase] Initialized successfully');
   } catch (e) {
