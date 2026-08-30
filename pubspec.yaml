@@ -28,6 +28,8 @@ dependencies:
   sqflite: ^2.3.0
   path: ^1.8.0
   supabase_flutter: ^2.17.0
+  pdf: ^3.10.0
+  share_plus: ^10.0.0
   pedometer: ^4.0.2
   sensors_plus: ^6.1.0
   timezone: ^0.9.0

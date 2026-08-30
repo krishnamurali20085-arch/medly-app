@@ -27,6 +27,7 @@ import 'services/database_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'services/supabase_service.dart';
 import 'services/notification_service.dart';
+import 'services/health_report_service.dart';
 import 'services/offline_service.dart';
 import 'services/exercise_service.dart';
 import 'services/heart_rate_service.dart';
@@ -5516,6 +5517,30 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const DoctorAppointmentPage()),
                 );
+              },
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.assessment_rounded, color: Colors.teal),
+              title: Text(_t('Health Report')),
+              subtitle: Text(_t('Export monthly health data as PDF')),
+              onTap: () async {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(_t('Generating health report...'))),
+                );
+                try {
+                  await HealthReportService.generateAndShareReport(
+                    patientName: widget.caregiverName,
+                    email: widget.caregiverEmail,
+                    language: widget.language,
+                  );
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('${_t('Error generating report')}: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                }
               },
             ),
             const SizedBox(height: 12),
