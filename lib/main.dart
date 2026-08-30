@@ -4276,6 +4276,7 @@ out center 100;
                       onSignOut: widget.onSignOut,
                       themeMode: widget.themeMode,
                       onThemeChanged: widget.onThemeChanged,
+                      language: _selectedLanguage,
                     ),
                   ),
                 );
@@ -4291,6 +4292,7 @@ out center 100;
                     builder: (_) => FamilyHealthDashboardPage(
                       caregiverEmail: widget.email,
                       caregiverName: widget.caregiverName,
+                      language: _selectedLanguage,
                     ),
                   ),
                 );
@@ -4963,6 +4965,7 @@ class CaregiverSettingsPage extends StatefulWidget {
     required this.onSignOut,
     this.themeMode = ThemeMode.light,
     this.onThemeChanged,
+    this.language = 'English',
   });
 
   final String caregiverName;
@@ -4974,6 +4977,7 @@ class CaregiverSettingsPage extends StatefulWidget {
   final VoidCallback onSignOut;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeChanged;
+  final String language;
 
   @override
   State<CaregiverSettingsPage> createState() => _CaregiverSettingsPageState();
@@ -4983,6 +4987,7 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
   late String _selectedPatientName = widget.selectedPatientName;
   String? _profilePhotoPath;
   final ImagePicker _picker = ImagePicker();
+  String _t(String v) => AppLocalizations(widget.language).text(v);
 
   @override
   void initState() {
@@ -5221,14 +5226,15 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
             const SizedBox(height: 12),
             ListTile(
               leading: const Icon(Icons.family_restroom_rounded, color: Colors.indigo),
-              title: const Text('Family Health Dashboard'),
-              subtitle: const Text("Monitor family members' health"),
+              title: Text(_t('Family Health Dashboard')),
+              subtitle: Text(_t("Monitor family members' health")),
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => FamilyHealthDashboardPage(
                       caregiverEmail: widget.caregiverEmail,
                       caregiverName: widget.caregiverName,
+                      language: widget.language,
                     ),
                   ),
                 );
@@ -5599,10 +5605,12 @@ class FamilyHealthDashboardPage extends StatefulWidget {
     super.key,
     required this.caregiverEmail,
     required this.caregiverName,
+    this.language = 'English',
   });
 
   final String caregiverEmail;
   final String caregiverName;
+  final String language;
 
   @override
   State<FamilyHealthDashboardPage> createState() => _FamilyHealthDashboardPageState();
@@ -5611,6 +5619,7 @@ class FamilyHealthDashboardPage extends StatefulWidget {
 class _FamilyHealthDashboardPageState extends State<FamilyHealthDashboardPage> {
   List<Map<String, dynamic>> _familyMembers = [];
   bool _loading = true;
+  String _t(String v) => AppLocalizations(widget.language).text(v);
 
   final List<Color> _cardColors = [
     const Color(0xFF6366F1),
@@ -5646,13 +5655,13 @@ class _FamilyHealthDashboardPageState extends State<FamilyHealthDashboardPage> {
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF101827) : const Color(0xFFF5F7FB),
       appBar: AppBar(
-        title: const Text('Family Health Dashboard'),
+        title: Text(_t('Family Health Dashboard')),
         backgroundColor: isDark ? const Color(0xFF1F2937) : const Color(0xFFE8D9DA),
         actions: [
           IconButton(
             onPressed: _showAddFamilyMemberDialog,
             icon: const Icon(Icons.person_add_rounded),
-            tooltip: 'Add family member',
+            tooltip: _t('Add family member'),
           ),
         ],
       ),
@@ -5672,14 +5681,14 @@ class _FamilyHealthDashboardPageState extends State<FamilyHealthDashboardPage> {
         children: [
           Icon(Icons.family_restroom_rounded, size: 80, color: Colors.grey.shade400),
           const SizedBox(height: 16),
-          Text('No family members yet', style: TextStyle(fontSize: 20, color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+          Text(_t('No family members yet'), style: TextStyle(fontSize: 20, color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text('Add family members to monitor their health', style: TextStyle(color: Colors.grey.shade500)),
+          Text(_t('Add family members to monitor their health'), style: TextStyle(color: Colors.grey.shade500)),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: _showAddFamilyMemberDialog,
             icon: const Icon(Icons.person_add_rounded),
-            label: const Text('Add Family Member'),
+            label: Text(_t('Add Family Member')),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF6366F1),
               foregroundColor: Colors.white,
@@ -5771,7 +5780,7 @@ class _FamilyHealthDashboardPageState extends State<FamilyHealthDashboardPage> {
                   itemBuilder: (_) => [
                     const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit_rounded, size: 18), SizedBox(width: 8), Text('Edit')])),
                     const PopupMenuItem(value: 'add_health', child: Row(children: [Icon(Icons.monitor_heart_rounded, size: 18), SizedBox(width: 8), Text('Add Health Data')])),
-                    const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_rounded, size: 18, color: Colors.red), SizedBox(width: 8), Text('Remove', style: TextStyle(color: Colors.red))])),
+                    PopupMenuItem(value: 'delete', child: Row(children: [const Icon(Icons.delete_rounded, size: 18, color: Colors.red), const SizedBox(width: 8), Text(_t('Remove'), style: const TextStyle(color: Colors.red))])),
                   ],
                 ),
               ],
@@ -5783,13 +5792,13 @@ class _FamilyHealthDashboardPageState extends State<FamilyHealthDashboardPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Health Info', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                Text(_t('Health Info'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    _healthPill('🩸 Blood', bloodGroup, isDark),
+                    _healthPill(_t('Blood Group'), bloodGroup, isDark),
                     const SizedBox(width: 8),
-                    _healthPill('⚠️ Allergies', allergies, isDark),
+                    _healthPill(_t('Allergies'), allergies, isDark),
                   ],
                 ),
                 if (phone.isNotEmpty) ...[
@@ -5829,7 +5838,7 @@ class _FamilyHealthDashboardPageState extends State<FamilyHealthDashboardPage> {
                 TextButton.icon(
                   onPressed: () => _showHealthHistory(member),
                   icon: const Icon(Icons.history_rounded, size: 18),
-                  label: const Text('View Health History'),
+                  label: Text(_t('View Health History')),
                 ),
               ],
             ),
@@ -5918,50 +5927,50 @@ class _FamilyHealthDashboardPageState extends State<FamilyHealthDashboardPage> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Add Family Member'),
+          title: Text(_t('Add Family Member')),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder()),
+                TextField(controller: nameController, decoration: InputDecoration(labelText: _t('Full Name'), border: const OutlineInputBorder()),
                   textCapitalization: TextCapitalization.words),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   value: selectedRelationship,
-                  decoration: const InputDecoration(labelText: 'Relationship', border: OutlineInputBorder()),
+                  decoration: InputDecoration(labelText: _t('Relationship'), border: const OutlineInputBorder()),
                   items: relationships.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
                   onChanged: (v) { if (v != null) setDialogState(() => selectedRelationship = v); },
                 ),
                 const SizedBox(height: 12),
-                TextField(controller: emailController, decoration: const InputDecoration(labelText: 'Email (optional)', border: OutlineInputBorder()),
+                TextField(controller: emailController, decoration: InputDecoration(labelText: _t('Email (optional)'), border: const OutlineInputBorder()),
                   keyboardType: TextInputType.emailAddress),
                 const SizedBox(height: 12),
-                TextField(controller: ageController, decoration: const InputDecoration(labelText: 'Age', border: OutlineInputBorder()),
+                TextField(controller: ageController, decoration: InputDecoration(labelText: _t('Age'), border: const OutlineInputBorder()),
                   keyboardType: TextInputType.number),
                 const SizedBox(height: 12),
-                TextField(controller: phoneController, decoration: const InputDecoration(labelText: 'Phone', border: OutlineInputBorder()),
+                TextField(controller: phoneController, decoration: InputDecoration(labelText: _t('Phone'), border: const OutlineInputBorder()),
                   keyboardType: TextInputType.phone),
                 const SizedBox(height: 12),
-                TextField(controller: bloodGroupController, decoration: const InputDecoration(labelText: 'Blood Group', border: OutlineInputBorder())),
+                TextField(controller: bloodGroupController, decoration: InputDecoration(labelText: _t('Blood Group'), border: const OutlineInputBorder())),
                 const SizedBox(height: 12),
-                TextField(controller: allergiesController, decoration: const InputDecoration(labelText: 'Allergies', border: OutlineInputBorder())),
+                TextField(controller: allergiesController, decoration: InputDecoration(labelText: _t('Allergies'), border: const OutlineInputBorder())),
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    Expanded(child: TextField(controller: weightController, decoration: const InputDecoration(labelText: 'Weight (kg)', border: OutlineInputBorder()), keyboardType: TextInputType.number)),
+                    Expanded(child: TextField(controller: weightController, decoration: InputDecoration(labelText: _t('Weight (kg)'), border: const OutlineInputBorder()), keyboardType: TextInputType.number)),
                     const SizedBox(width: 8),
-                    Expanded(child: TextField(controller: heightController, decoration: const InputDecoration(labelText: 'Height (cm)', border: OutlineInputBorder()), keyboardType: TextInputType.number)),
+                    Expanded(child: TextField(controller: heightController, decoration: InputDecoration(labelText: _t('Height (cm)'), border: const OutlineInputBorder()), keyboardType: TextInputType.number)),
                   ],
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(_t('Cancel'))),
             ElevatedButton(
               onPressed: () async {
                 if (nameController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Name is required')));
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_t('Name is required'))));
                   return;
                 }
                 final id = await DatabaseService.addFamilyMember(
@@ -5993,11 +6002,11 @@ class _FamilyHealthDashboardPageState extends State<FamilyHealthDashboardPage> {
                 _loadFamilyMembers();
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${nameController.text.trim()} added to family')),
+                    SnackBar(content: Text(_t('added to family').replaceAll('{name}', nameController.text.trim()))),
                   );
                 }
               },
-              child: const Text('Add Member'),
+              child: Text(_t('Add Member')),
             ),
           ],
         ),
@@ -6019,7 +6028,7 @@ class _FamilyHealthDashboardPageState extends State<FamilyHealthDashboardPage> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: Text('Edit ${member['patient_name']}'),
+          title: Text('${_t('Edit')} ${member['patient_name']}'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -6028,20 +6037,20 @@ class _FamilyHealthDashboardPageState extends State<FamilyHealthDashboardPage> {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   value: selectedRelationship,
-                  decoration: const InputDecoration(labelText: 'Relationship', border: OutlineInputBorder()),
+                  decoration: InputDecoration(labelText: _t('Relationship'), border: const OutlineInputBorder()),
                   items: relationships.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
                   onChanged: (v) { if (v != null) setDialogState(() => selectedRelationship = v); },
                 ),
                 const SizedBox(height: 12),
-                TextField(controller: emailController, decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder())),
+                TextField(controller: emailController, decoration: InputDecoration(labelText: _t('Email'), border: const OutlineInputBorder())),
                 const SizedBox(height: 12),
-                TextField(controller: ageController, decoration: const InputDecoration(labelText: 'Age', border: OutlineInputBorder()), keyboardType: TextInputType.number),
+                TextField(controller: ageController, decoration: InputDecoration(labelText: _t('Age'), border: const OutlineInputBorder()), keyboardType: TextInputType.number),
                 const SizedBox(height: 12),
-                TextField(controller: phoneController, decoration: const InputDecoration(labelText: 'Phone', border: OutlineInputBorder()), keyboardType: TextInputType.phone),
+                TextField(controller: phoneController, decoration: InputDecoration(labelText: _t('Phone'), border: const OutlineInputBorder()), keyboardType: TextInputType.phone),
                 const SizedBox(height: 12),
-                TextField(controller: bloodGroupController, decoration: const InputDecoration(labelText: 'Blood Group', border: OutlineInputBorder())),
+                TextField(controller: bloodGroupController, decoration: InputDecoration(labelText: _t('Blood Group'), border: const OutlineInputBorder())),
                 const SizedBox(height: 12),
-                TextField(controller: allergiesController, decoration: const InputDecoration(labelText: 'Allergies', border: OutlineInputBorder())),
+                TextField(controller: allergiesController, decoration: InputDecoration(labelText: _t('Allergies'), border: const OutlineInputBorder())),
               ],
             ),
           ),
@@ -6080,22 +6089,22 @@ class _FamilyHealthDashboardPageState extends State<FamilyHealthDashboardPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Add Health Data for ${member['patient_name']}'),
+        title: Text(_t('Add Health Data for {name}').replaceAll('{name}', member['patient_name'])),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Date: $todayKey', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              Text(_t('Date: {date}').replaceAll('{date}', todayKey), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
               const SizedBox(height: 12),
-              TextField(controller: bpController, decoration: const InputDecoration(labelText: 'Blood Pressure (e.g. 120/80)', border: OutlineInputBorder())),
+              TextField(controller: bpController, decoration: InputDecoration(labelText: _t('Blood Pressure'), border: const OutlineInputBorder())),
               const SizedBox(height: 12),
-              TextField(controller: sugarController, decoration: const InputDecoration(labelText: 'Blood Sugar (mg/dL)', border: OutlineInputBorder()), keyboardType: TextInputType.number),
+              TextField(controller: sugarController, decoration: InputDecoration(labelText: _t('Blood Sugar'), border: const OutlineInputBorder()), keyboardType: TextInputType.number),
               const SizedBox(height: 12),
-              TextField(controller: hrController, decoration: const InputDecoration(labelText: 'Heart Rate (bpm)', border: OutlineInputBorder()), keyboardType: TextInputType.number),
+              TextField(controller: hrController, decoration: InputDecoration(labelText: _t('Heart Rate'), border: const OutlineInputBorder()), keyboardType: TextInputType.number),
               const SizedBox(height: 12),
-              TextField(controller: sleepController, decoration: const InputDecoration(labelText: 'Sleep (hours)', border: OutlineInputBorder()), keyboardType: TextInputType.number),
+              TextField(controller: sleepController, decoration: InputDecoration(labelText: _t('Sleep (hours)'), border: const OutlineInputBorder()), keyboardType: TextInputType.number),
               const SizedBox(height: 12),
-              TextField(controller: notesController, decoration: const InputDecoration(labelText: 'Notes (optional)', border: OutlineInputBorder()), maxLines: 2),
+              TextField(controller: notesController, decoration: InputDecoration(labelText: _t('Notes (optional)'), border: const OutlineInputBorder()), maxLines: 2),
             ],
           ),
         ),
@@ -6154,8 +6163,8 @@ class _FamilyHealthDashboardPageState extends State<FamilyHealthDashboardPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Remove Family Member'),
-        content: Text('Remove ${member['patient_name']} and all their health data?'),
+        title: Text(_t('Remove Family Member')),
+        content: Text(_t('Remove {name} and all their health data?').replaceAll('{name}', member['patient_name'])),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
@@ -6165,7 +6174,7 @@ class _FamilyHealthDashboardPageState extends State<FamilyHealthDashboardPage> {
               Navigator.pop(ctx);
               _loadFamilyMembers();
             },
-            child: const Text('Remove'),
+            child: Text(_t('Remove')),
           ),
         ],
       ),
