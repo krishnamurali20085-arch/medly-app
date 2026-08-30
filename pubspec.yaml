@@ -38,6 +38,7 @@ dependencies:
   flutter_blue_plus: ^1.35.0
   qr_flutter: ^4.1.0
   screenshot: ^3.0.0
+  mobile_scanner: ^5.0.0
 
 dev_dependencies:
   flutter_test:

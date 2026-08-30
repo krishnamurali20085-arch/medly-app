@@ -30,6 +30,7 @@ import 'services/notification_service.dart';
 import 'services/health_report_service.dart';
 import 'pages/symptom_checker_page.dart';
 import 'pages/medical_id_card_page.dart';
+import 'pages/universal_scanner_page.dart';
 import 'services/offline_service.dart';
 import 'services/exercise_service.dart';
 import 'services/heart_rate_service.dart';
@@ -4278,7 +4279,13 @@ out center 100;
                   ],
                 ),
             onSelected: (value) {
-              if (value == 'settings') {
+              if (value == 'scanner') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => UniversalScannerPage(language: _selectedLanguage),
+                  ),
+                );
+              } else if (value == 'settings') {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => CaregiverSettingsPage(
@@ -4323,6 +4330,7 @@ out center 100;
               }
             },
             itemBuilder: (context) => [
+              const PopupMenuItem(value: 'scanner', child: Text('Universal Scanner')),
               const PopupMenuItem(value: 'settings', child: Text('Settings')),
               const PopupMenuItem(value: 'family_dashboard', child: Text('Family Dashboard')),
               const PopupMenuItem(value: 'live_map', child: Text('Live Map')),
