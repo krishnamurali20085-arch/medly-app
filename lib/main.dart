@@ -28,6 +28,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'services/supabase_service.dart';
 import 'services/notification_service.dart';
 import 'services/health_report_service.dart';
+import 'pages/symptom_checker_page.dart';
 import 'services/offline_service.dart';
 import 'services/exercise_service.dart';
 import 'services/heart_rate_service.dart';
@@ -4333,15 +4334,33 @@ out center 100;
         ],
       ),
       body: pages[_selectedIndex],
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 0),
-        child: FloatingActionButton(
-          onPressed: _openAiSheet,
-          backgroundColor: Colors.indigo,
-          mini: true,
-          tooltip: _t('AI Health Assistant'),
-          child: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 22),
-        ),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => SymptomCheckerPage(language: _selectedLanguage),
+                ),
+              );
+            },
+            backgroundColor: Colors.teal,
+            mini: true,
+            tooltip: _t('Symptom Checker'),
+            heroTag: 'symptom_checker',
+            child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 22),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton(
+            onPressed: _openAiSheet,
+            backgroundColor: Colors.indigo,
+            mini: true,
+            tooltip: _t('AI Health Assistant'),
+            heroTag: 'ai_assistant',
+            child: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 22),
+          ),
+        ],
       ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.only(left: 10, right: 10, bottom: 6, top: 6),
