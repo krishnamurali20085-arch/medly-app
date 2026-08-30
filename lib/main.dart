@@ -2224,20 +2224,18 @@ out center 100;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Trigger SOS?'),
+        title: Text(_t('Trigger SOS?')),
         content: Text(
           isOnline
-              ? 'Tier 1 contact will receive a phone call. '
-                'Other tiers will receive a WhatsApp message. Continue?'
-              : 'You are OFFLINE. Tier 1 will be called directly. '
-                'Other tiers will receive an SMS message. Continue?'
+              ? _t('Tier 1 contact will receive a phone call. Other tiers will receive a WhatsApp message. Continue?')
+              : _t('You are OFFLINE. Tier 1 will be called directly. Other tiers will receive an SMS message. Continue?')
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(_t('Cancel'))),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-            child: const Text('SEND SOS'),
+            child: Text(_t('SEND SOS')),
           ),
         ],
       ),
@@ -2380,17 +2378,16 @@ out center 100;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('🚨 Emergency Broadcast?'),
+        title: Text(_t('Emergency Broadcast?')),
         content: Text(
-          'This will send an SMS to ALL ${contacts.length} emergency contacts simultaneously. '
-          'Each contact will receive your name, blood group, allergies, and live GPS location. Continue?'
+          _t('This will send an SMS to ALL emergency contacts simultaneously. Each contact will receive your name, blood group, allergies, and live GPS location. Continue?')
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(_t('Cancel'))),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-            child: const Text('BROADCAST NOW'),
+            child: Text(_t('BROADCAST NOW')),
           ),
         ],
       ),
@@ -2712,30 +2709,19 @@ out center 100;
                       showDialog(
                         context: localCtx,
                         builder: (_) => AlertDialog(
-                          title: const Text('How to use AI Assistant'),
+                          title: Text(_t('How to use AI Assistant')),
                           content: SingleChildScrollView(
                             child: Text(
-                              '1. Type or speak your symptoms or health question\n\n'
-                              '2. Press Enter key or tap "Get guidance" for analysis\n\n'
-                              '3. The AI responds in your selected language: $_selectedLanguage\n\n'
-                              '4. Supported languages:\n'
-                              '   English, Tamil, Hindi, Telugu, Kannada,\n'
-                              '   Malayalam, Marathi, Urdu, French, Japanese\n\n'
-                              '5. Tap the mic button to speak in your language\n\n'
-                              '6. The response is read aloud in your language\n\n'
-                              '7. Change language from the app settings to\n'
-                              '   get responses in a different language\n\n'
-                              'Supported topics: fever, cold, injuries, allergies,\n'
-                              'diabetes, blood pressure, mental health, and more.',
+                              _t('AI guidance instructions'),
                             ),
                           ),
                           actions: [
-                            TextButton(onPressed: () => Navigator.pop(localCtx), child: const Text('Got it')),],
+                            TextButton(onPressed: () => Navigator.pop(localCtx), child: Text(_t('Got it'))),],
                         ),
                       );
                     },
                     icon: const Icon(Icons.help_outline_rounded, size: 16),
-                    label: const Text('How to use', style: TextStyle(fontSize: 12)),
+                    label: Text(_t('How to use'), style: const TextStyle(fontSize: 12)),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -4463,25 +4449,25 @@ out center 100;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Edit Health Profile'),
+        title: Text(_t('Edit Health Profile')),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: bgController, decoration: const InputDecoration(labelText: 'Blood Group')),
+              TextField(controller: bgController, decoration: InputDecoration(labelText: _t('Blood Group'))),
               const SizedBox(height: 8),
-              TextField(controller: allergiesController, decoration: const InputDecoration(labelText: 'Allergies')),
+              TextField(controller: allergiesController, decoration: InputDecoration(labelText: _t('Allergies'))),
               const SizedBox(height: 8),
-              TextField(controller: diseasesController, decoration: const InputDecoration(labelText: 'Diseases / Conditions')),
+              TextField(controller: diseasesController, decoration: InputDecoration(labelText: _t('Diseases / Conditions'))),
               const SizedBox(height: 8),
-              TextField(controller: weightController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Weight (kg)')),
+              TextField(controller: weightController, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: _t('Weight (kg)'))),
               const SizedBox(height: 8),
-              TextField(controller: heightController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Height (cm)')),
+              TextField(controller: heightController, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: _t('Height (cm)'))),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(_t('Cancel'))),
           ElevatedButton(
             onPressed: () {
               widget.onProfileUpdate?.call(
@@ -4493,7 +4479,7 @@ out center 100;
               );
               Navigator.pop(ctx);
             },
-            child: const Text('Save'),
+            child: Text(_t('Save')),
           ),
         ],
       ),
