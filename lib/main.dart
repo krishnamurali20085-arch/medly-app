@@ -29,6 +29,7 @@ import 'services/supabase_service.dart';
 import 'services/notification_service.dart';
 import 'services/health_report_service.dart';
 import 'pages/symptom_checker_page.dart';
+import 'pages/medical_id_card_page.dart';
 import 'services/offline_service.dart';
 import 'services/exercise_service.dart';
 import 'services/heart_rate_service.dart';
@@ -5560,6 +5561,40 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
                     );
                   }
                 }
+              },
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.badge_rounded, color: Colors.indigo),
+              title: Text(_t('Medical ID Card')),
+              subtitle: Text(_t('Shareable QR code with your medical info')),
+              onTap: () async {
+                // Fetch account data for the card
+                final account = await DatabaseService.getAccount(widget.caregiverEmail);
+                final contactsJson = account?['emergency_contacts'];
+                List<Map<String, String>> contacts = [];
+                if (contactsJson != null) {
+                  try {
+                    final list = contactsJson is String ? jsonDecode(contactsJson) : contactsJson;
+                    contacts = (list as List).map((c) => Map<String, String>.from(c)).toList();
+                  } catch (_) {}
+                }
+                if (!mounted) return;
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => MedicalIdCardPage(
+                      language: widget.language,
+                      name: widget.caregiverName,
+                      email: widget.caregiverEmail,
+                      bloodGroup: account?['blood_group'],
+                      allergies: account?['allergies'],
+                      diseases: account?['diseases'],
+                      weight: account?['weight'],
+                      height: account?['height'],
+                      emergencyContacts: contacts,
+                    ),
+                  ),
+                );
               },
             ),
             const SizedBox(height: 12),
