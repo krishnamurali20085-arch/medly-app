@@ -3547,8 +3547,7 @@ out center 100;
                 _startBluetoothHR();
               }
             },
-            icon: const Icon(Icons.watch_rounded, size: 18),
-            label: const Text('Connect Smartwatch', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            icon: const Icon(Icons.watch_rounded, size: 18),                            label: Text(_t('Connect Smartwatch'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
             style: OutlinedButton.styleFrom(
               foregroundColor: const Color(0xFF6C63FF),
               side: const BorderSide(color: Color(0xFF6C63FF), width: 1.5),
@@ -3577,14 +3576,13 @@ out center 100;
               );
             },
             icon: const Icon(Icons.map_rounded, size: 18),
-            label: const Text('Find Hospitals & Pharmacies Near You', style: TextStyle(fontSize: 13)),
+            label: Text(_t('Find Hospitals & Pharmacies Near You'), style: TextStyle(fontSize: 13)),
           ),
         ),
 
         const SizedBox(height: 24),
 
-        // Daily Exercises
-        Text(_t('Daily Exercises'), style: Theme.of(context).textTheme.headlineSmall),
+        // Daily Exercises                Text(_t('Daily Exercises'), style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 4),
         Text(_t('Based on your conditions'), style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
         const SizedBox(height: 12),
@@ -3761,27 +3759,27 @@ out center 100;
             Color streakColor;
             if (allDone) {
               streakEmoji = '🎉';
-              streakMessage = 'All exercises done today! Keep the streak alive tomorrow!';
+              streakMessage = _t('All exercises done today! Keep the streak alive tomorrow!');
               streakColor = Colors.green;
             } else if (currentStreak >= 30) {
               streakEmoji = '👑';
-              streakMessage = "$currentStreak-day streak! Champions don't quit!";
+              streakMessage = "$currentStreak ${_t('day streak! Champions don\'t quit!')}";
               streakColor = Colors.amber.shade700;
             } else if (currentStreak >= 7) {
               streakEmoji = '🔥';
-              streakMessage = "$currentStreak days strong! Don't break the chain!";
+              streakMessage = "$currentStreak ${_t('days strong! Don\'t break the chain!')}";
               streakColor = Colors.deepOrange;
             } else if (currentStreak >= 3) {
               streakEmoji = '💪';
-              streakMessage = "$currentStreak days! Almost a week - keep pushing!";
+              streakMessage = "$currentStreak ${_t('days! Almost a week - keep pushing!')}";
               streakColor = Colors.orange;
             } else if (currentStreak >= 1) {
               streakEmoji = '⭐';
-              streakMessage = '$currentStreak day streak started! Build the habit!';
+              streakMessage = '$currentStreak ${_t('day streak started! Build the habit!')}';
               streakColor = Colors.blue;
             } else {
               streakEmoji = '🌟';
-              streakMessage = '$completed/$total done today. Start your streak now!';
+              streakMessage = '$completed/$total ${_t('done today. Start your streak now!')}';
               streakColor = Colors.purple;
             }
 
@@ -3814,7 +3812,7 @@ out center 100;
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Streak: $currentStreak day${currentStreak == 1 ? '' : 's'}',
+                              '${_t('Streak')}: $currentStreak ${_t('days')}',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 15,
@@ -3873,14 +3871,14 @@ out center 100;
                     child: ListTile(
                       leading: Text(ex['icon'] ?? '🏃', style: const TextStyle(fontSize: 28)),
                       title: Text(
-                        ex['name'] ?? '',
+                        _t(ex['name'] ?? ''),
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           decoration: isDone ? TextDecoration.lineThrough : null,
                           color: isDone ? Colors.green : null,
                         ),
                       ),
-                      subtitle: Text('${ex['duration']} • ${ex['desc']}'),
+                      subtitle: Text('${ex['duration']} • ${_t(ex['desc'] ?? '')}'),
                       trailing: isDone
                           ? const Icon(Icons.check_circle, color: Colors.green, size: 28)
                           : Checkbox(
@@ -6253,6 +6251,8 @@ class _ClinicMapPageState extends State<ClinicMapPage> with SingleTickerProvider
   bool _isNavigating = false;
   StreamSubscription<Position>? _navigationSub;
 
+  String _t(String value) => AppLocalizations(widget.language).text(value);
+
   @override
   void initState() {
     super.initState();
@@ -6689,7 +6689,7 @@ out center 100;
               _loadSosLocations();
             },
             icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Refresh location',
+            tooltip: AppLocalizations(widget.language).text('Refresh location'),
           ),
           IconButton(
             onPressed: () {
@@ -6698,7 +6698,7 @@ out center 100;
               }
             },
             icon: const Icon(Icons.my_location_rounded),
-            tooltip: 'Center on me',
+            tooltip: _t('You'),
           ),
         ],
       ),
@@ -6777,7 +6777,7 @@ out center 100;
                           _findLocation();
                         },
                         icon: const Icon(Icons.refresh, size: 16),
-                        label: const Text('Retry — Get My Location'),
+                        label: Text(_t('Retry — Get My Location')),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.orange.shade700,
                           foregroundColor: Colors.white,
@@ -6802,14 +6802,14 @@ out center 100;
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8)],
                 ),
-                child: const Column(
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 12),
-                    Text('Getting your GPS location...', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                    SizedBox(height: 4),
-                    Text('Please wait while we find where you are', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 12),
+                    Text(_t('Getting your GPS location...'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 4),
+                    Text(_t('Please wait while we find where you are'), style: const TextStyle(fontSize: 12, color: Colors.grey)),
                   ],
                 ),
               ),
@@ -6830,10 +6830,10 @@ out center 100;
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _filterChip('All', Icons.all_inclusive_rounded, Colors.blue),
-                    _filterChip('Hospital', Icons.local_hospital_rounded, Colors.red),
-                    _filterChip('Pharmacy', Icons.local_pharmacy_rounded, Colors.green),
-                    _filterChip('Ambulance', Icons.emergency_rounded, Colors.orange),
+                    _filterChip('All', _t('All'), Icons.all_inclusive_rounded, Colors.blue),
+                    _filterChip('Hospital', _t('Hospital'), Icons.local_hospital_rounded, Colors.red),
+                    _filterChip('Pharmacy', _t('Pharmacy'), Icons.local_pharmacy_rounded, Colors.green),
+                    _filterChip('Ambulance', _t('Ambulance'), Icons.emergency_rounded, Colors.orange),
                   ],
                 ),
               ),
@@ -6860,7 +6860,7 @@ out center 100;
                       Icon(Icons.info_outline, size: 16, color: Colors.grey.shade600),
                       const SizedBox(width: 6),
                       Text(
-                        '${_filteredServices.length} places found',
+                        '${_filteredServices.length} ${_t('places found')}',
                         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: isDark ? Colors.white : Colors.black87),
                       ),
                       if (_sosLocations.isNotEmpty) ...[
@@ -6883,15 +6883,15 @@ out center 100;
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      _legendItem(Icons.local_hospital_rounded, 'Hospital', Colors.red.shade700),
+                      _legendItem(Icons.local_hospital_rounded, _t('Hospital'), Colors.red.shade700),
                       const SizedBox(width: 12),
-                      _legendItem(Icons.local_pharmacy_rounded, 'Pharmacy', Colors.green.shade700),
+                      _legendItem(Icons.local_pharmacy_rounded, _t('Pharmacy'), Colors.green.shade700),
                       const SizedBox(width: 12),
-                      _legendItem(Icons.emergency_rounded, 'Ambulance', Colors.orange.shade700),
+                      _legendItem(Icons.emergency_rounded, _t('Ambulance'), Colors.orange.shade700),
                       const SizedBox(width: 12),
                       _legendItem(Icons.close, 'SOS', Colors.red),
                       const SizedBox(width: 12),
-                      _legendItem(Icons.my_location, 'You', Colors.blue),
+                      _legendItem(Icons.my_location, _t('You'), Colors.blue),
                     ],
                   ),
                 ],
@@ -6940,8 +6940,8 @@ out center 100;
                                 overflow: TextOverflow.ellipsis,
                               ),
                               if (_isNavigating)
-                                const Text(
-                                  'Following your location...', 
+                                Text(
+                                  _t('Following your location...'), 
                                   style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.w500),
                                 ),
                             ],
@@ -6964,8 +6964,8 @@ out center 100;
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _routeInfoTile(Icons.straighten, 'Distance', _currentRoute!.distanceText),
-                        _routeInfoTile(Icons.schedule, 'ETA', _currentRoute!.durationText),
+                        _routeInfoTile(Icons.straighten, _t('Distance'), _currentRoute!.distanceText),
+                        _routeInfoTile(Icons.schedule, _t('ETA'), _currentRoute!.durationText),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -6977,7 +6977,7 @@ out center 100;
                               _startNavigation();
                             },
                             icon: const Icon(Icons.navigation_rounded, size: 16),
-                            label: Text(_isNavigating ? 'Stop Navigation' : 'Start Navigation'),
+                            label: Text(_isNavigating ? _t('Stop Navigation') : _t('Start Navigation')),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: _isNavigating ? Colors.red : Colors.green,
                               foregroundColor: Colors.white,
@@ -7036,12 +7036,12 @@ out center 100;
     );
   }
 
-  Widget _filterChip(String label, IconData icon, Color color) {
-    final selected = _selectedFilter == label;
+  Widget _filterChip(String value, String displayLabel, IconData icon, Color color) {
+    final selected = _selectedFilter == value;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
       child: GestureDetector(
-        onTap: () => setState(() => _selectedFilter = label),
+        onTap: () => setState(() => _selectedFilter = value),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
@@ -7053,7 +7053,7 @@ out center 100;
             children: [
               Icon(icon, size: 14, color: selected ? color : Colors.grey.shade600),
               const SizedBox(width: 4),
-              Text(label, style: TextStyle(fontSize: 11, fontWeight: selected ? FontWeight.bold : FontWeight.normal, color: selected ? color : Colors.grey.shade600)),
+              Text(displayLabel, style: TextStyle(fontSize: 11, fontWeight: selected ? FontWeight.bold : FontWeight.normal, color: selected ? color : Colors.grey.shade600)),
             ],
           ),
         ),
@@ -7167,8 +7167,8 @@ out center 100;
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Navigation started! Map follows your location.'),
+      SnackBar(
+        content: Text(_t('Navigation started! Map follows your location.')),
         backgroundColor: Color(0xFF6C63FF),
         duration: Duration(seconds: 2),
       ),
@@ -7231,7 +7231,7 @@ out center 100;
                   _showRoute(service);
                 },
                 icon: const Icon(Icons.route_rounded, size: 18),
-                label: const Text('Show Route on Map'),
+                label: Text(AppLocalizations(widget.language).text('Show Route on Map')),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6C63FF),
                   foregroundColor: Colors.white,
@@ -7249,7 +7249,7 @@ out center 100;
                       _showRoute(service);
                     },
                     icon: const Icon(Icons.navigation_rounded, size: 18),
-                    label: const Text('Start Navigation'),
+                    label: Text(_t('Start Navigation')),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
                   ),
                 ),
