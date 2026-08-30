@@ -477,7 +477,7 @@ class _MedlyAppState extends State<MedlyApp> {
   Widget build(BuildContext context) {
     final lightTheme = ThemeData(
       useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(seedColor: Colors.redAccent),
+      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)),
       scaffoldBackgroundColor: const Color(0xFFF5F7FB),
     );
 
@@ -485,7 +485,7 @@ class _MedlyAppState extends State<MedlyApp> {
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.redAccent,
+        seedColor: const Color(0xFF2E7D32),
         brightness: Brightness.dark,
       ),
       scaffoldBackgroundColor: const Color(0xFF101827),
@@ -3573,8 +3573,8 @@ out center 100;
             },
             icon: const Icon(Icons.watch_rounded, size: 18),                            label: Text(_t('Connect Smartwatch'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
             style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF6C63FF),
-              side: const BorderSide(color: Color(0xFF6C63FF), width: 1.5),
+              foregroundColor: const Color(0xFF2E7D32),
+              side: const BorderSide(color: Color(0xFF2E7D32), width: 1.5),
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -3907,7 +3907,7 @@ out center 100;
                           ? const Icon(Icons.check_circle, color: Colors.green, size: 28)
                           : Checkbox(
                               value: isSelected,
-                              activeColor: const Color(0xFF6C63FF),
+                              activeColor: const Color(0xFF2E7D32),
                               onChanged: (val) {
                                 setState(() {
                                   if (val == true) {
@@ -3961,7 +3961,7 @@ out center 100;
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6C63FF),
+                        backgroundColor: const Color(0xFF2E7D32),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         elevation: 2,
@@ -4238,12 +4238,12 @@ out center 100;
                   children: [
                     CircleAvatar(
                       radius: 14,
-                      backgroundColor: const Color(0xFF6C63FF).withOpacity(0.15),
+                      backgroundColor: const Color(0xFF2E7D32).withOpacity(0.15),
                       backgroundImage: _profilePhotoPath != null ? FileImage(File(_profilePhotoPath!)) : null,
                       child: _profilePhotoPath == null
                           ? Text(
                               widget.patientName.isNotEmpty ? widget.patientName[0].toUpperCase() : '?',
-                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF6C63FF)),
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
                             )
                           : null,
                     ),
@@ -4358,10 +4358,10 @@ out center 100;
             }
           },
           destinations: [
-            NavigationDestination(icon: const Icon(Icons.home_rounded), selectedIcon: const Icon(Icons.home_rounded, color: Color(0xFF6C63FF)), label: _t('Home')),
-            NavigationDestination(icon: const Icon(Icons.sos_rounded), selectedIcon: const Icon(Icons.sos_rounded, color: Color(0xFF6C63FF)), label: _t('SOS')),
-            NavigationDestination(icon: const Icon(Icons.monitor_heart_rounded), selectedIcon: const Icon(Icons.monitor_heart_rounded, color: Color(0xFF6C63FF)), label: _t('Health')),
-            NavigationDestination(icon: const Icon(Icons.map_rounded), selectedIcon: const Icon(Icons.map_rounded, color: Color(0xFF6C63FF)), label: _t('Map')),
+            NavigationDestination(icon: const Icon(Icons.home_rounded), selectedIcon: const Icon(Icons.home_rounded, color: Color(0xFF2E7D32)), label: _t('Home')),
+            NavigationDestination(icon: const Icon(Icons.sos_rounded), selectedIcon: const Icon(Icons.sos_rounded, color: Color(0xFF2E7D32)), label: _t('SOS')),
+            NavigationDestination(icon: const Icon(Icons.monitor_heart_rounded), selectedIcon: const Icon(Icons.monitor_heart_rounded, color: Color(0xFF2E7D32)), label: _t('Health')),
+            NavigationDestination(icon: const Icon(Icons.map_rounded), selectedIcon: const Icon(Icons.map_rounded, color: Color(0xFF2E7D32)), label: _t('Map')),
           ],
         ),
       ),
@@ -4382,7 +4382,7 @@ out center 100;
                 children: [
                   Text(
                     '$tempGoal ${_t('steps')}',
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF6C63FF)),
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
                   ),
                   const SizedBox(height: 16),
                   Slider(
@@ -4391,7 +4391,7 @@ out center 100;
                     max: 6000,
                     divisions: 58,
                     label: '$tempGoal',
-                    activeColor: const Color(0xFF6C63FF),
+                    activeColor: const Color(0xFF2E7D32),
                     onChanged: (v) => setDialogState(() => tempGoal = v.toInt()),
                   ),
                   Row(
@@ -4410,7 +4410,7 @@ out center 100;
                       return ActionChip(
                         label: Text('$preset', style: const TextStyle(fontSize: 12)),
                         backgroundColor: tempGoal == preset
-                            ? const Color(0xFF6C63FF).withValues(alpha: 0.2)
+                            ? const Color(0xFF2E7D32).withValues(alpha: 0.2)
                             : null,
                         onPressed: () => setDialogState(() => tempGoal = preset),
                       );
@@ -4430,7 +4430,7 @@ out center 100;
                     await prefs.setInt('step_goal', _stepGoal);
                     if (mounted) Navigator.pop(ctx);
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF)),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32)),
                   child: Text(_t('Save'), style: const TextStyle(color: Colors.white)),
                 ),
               ],
@@ -5054,12 +5054,12 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
                       children: [
                         CircleAvatar(
                           radius: 36,
-                          backgroundColor: const Color(0xFF6C63FF).withOpacity(0.15),
+                          backgroundColor: const Color(0xFF2E7D32).withOpacity(0.15),
                           backgroundImage: _profilePhotoPath != null ? FileImage(File(_profilePhotoPath!)) : null,
                           child: _profilePhotoPath == null
                               ? Text(
                                   widget.caregiverName.isNotEmpty ? widget.caregiverName[0].toUpperCase() : '?',
-                                  style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Color(0xFF6C63FF)),
+                                  style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
                                 )
                               : null,
                         ),
@@ -5069,7 +5069,7 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
                           child: Container(
                             padding: const EdgeInsets.all(4),
                             decoration: const BoxDecoration(
-                              color: Color(0xFF6C63FF),
+                              color: Color(0xFF2E7D32),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(Icons.camera_alt_rounded, size: 14, color: Colors.white),
@@ -5092,7 +5092,7 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.camera_alt_rounded, color: Color(0xFF6C63FF)),
+                    icon: const Icon(Icons.camera_alt_rounded, color: Color(0xFF2E7D32)),
                     onPressed: _pickProfilePhoto,
                     tooltip: 'Change photo',
                   ),
@@ -5145,12 +5145,12 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
             SwitchListTile(
               secondary: Icon(
                 widget.themeMode == ThemeMode.dark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-                color: widget.themeMode == ThemeMode.dark ? Colors.amber : const Color(0xFF6C63FF),
+                color: widget.themeMode == ThemeMode.dark ? Colors.amber : const Color(0xFF2E7D32),
               ),
               title: const Text('Dark Mode'),
               subtitle: Text(widget.themeMode == ThemeMode.dark ? 'Dark theme active' : 'Light theme active'),
               value: widget.themeMode == ThemeMode.dark,
-              activeColor: const Color(0xFF6C63FF),
+              activeColor: const Color(0xFF2E7D32),
               onChanged: (val) {
                 widget.onThemeChanged?.call(val ? ThemeMode.dark : ThemeMode.light);
                 setState(() {});
@@ -6855,7 +6855,7 @@ out center 100;
                     Polyline(
                       points: _routePoints,
                       strokeWidth: 5.0,
-                      color: const Color(0xFF6C63FF),
+                      color: const Color(0xFF2E7D32),
                     ),
                   ],
                 ),
@@ -7047,12 +7047,12 @@ out center 100;
                         Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: _isNavigating ? Colors.green.withOpacity(0.1) : const Color(0xFF6C63FF).withOpacity(0.1),
+                            color: _isNavigating ? Colors.green.withOpacity(0.1) : const Color(0xFF2E7D32).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
                             _isNavigating ? Icons.navigation_rounded : Icons.route_rounded,
-                            color: _isNavigating ? Colors.green : const Color(0xFF6C63FF),
+                            color: _isNavigating ? Colors.green : const Color(0xFF2E7D32),
                             size: 20,
                           ),
                         ),
@@ -7203,7 +7203,7 @@ out center 100;
   Widget _routeInfoTile(IconData icon, String label, String value) {
     return Column(
       children: [
-        Icon(icon, color: const Color(0xFF6C63FF), size: 22),
+        Icon(icon, color: const Color(0xFF2E7D32), size: 22),
         const SizedBox(height: 4),
         Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
         const SizedBox(height: 2),
@@ -7297,7 +7297,7 @@ out center 100;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(_t('Navigation started! Map follows your location.')),
-        backgroundColor: Color(0xFF6C63FF),
+        backgroundColor: Color(0xFF2E7D32),
         duration: Duration(seconds: 2),
       ),
     );
@@ -7361,7 +7361,7 @@ out center 100;
                 icon: const Icon(Icons.route_rounded, size: 18),
                 label: Text(AppLocalizations(widget.language).text('Show Route on Map')),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6C63FF),
+                  backgroundColor: const Color(0xFF2E7D32),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),

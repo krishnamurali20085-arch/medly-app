@@ -124,9 +124,9 @@ class _BluetoothScanPageState extends State<BluetoothScanPage> {
             padding: const EdgeInsets.all(16),
             margin: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF6C63FF).withOpacity(0.1),
+              color: const Color(0xFF2E7D32).withOpacity(0.1),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.3)),
+              border: Border.all(color: const Color(0xFF2E7D32).withOpacity(0.3)),
             ),
             child: Column(
               children: [
@@ -184,7 +184,7 @@ class _BluetoothScanPageState extends State<BluetoothScanPage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        CircularProgressIndicator(color: Color(0xFF6C63FF)),
+                        CircularProgressIndicator(color: Color(0xFF2E7D32)),
                         SizedBox(height: 16),
                         Text('Scanning for devices...'),
                       ],
@@ -209,7 +209,7 @@ class _BluetoothScanPageState extends State<BluetoothScanPage> {
                               icon: const Icon(Icons.refresh),
                               label: const Text('Scan Again'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF6C63FF),
+                                backgroundColor: const Color(0xFF2E7D32),
                                 foregroundColor: Colors.white,
                               ),
                             ),
@@ -249,7 +249,7 @@ class _BluetoothScanPageState extends State<BluetoothScanPage> {
                             child: ListTile(
                               leading: CircleAvatar(
                                 backgroundColor: hasHR
-                                    ? const Color(0xFF6C63FF).withOpacity(0.15)
+                                    ? const Color(0xFF2E7D32).withOpacity(0.15)
                                     : Colors.grey.withOpacity(0.15),
                                 child: Text(
                                   hasHR ? '⌚' : '📱',
@@ -285,7 +285,7 @@ class _BluetoothScanPageState extends State<BluetoothScanPage> {
                                       child: CircularProgressIndicator(strokeWidth: 2),
                                     )
                                   : IconButton(
-                                      icon: const Icon(Icons.bluetooth, color: Color(0xFF6C63FF)),
+                                      icon: const Icon(Icons.bluetooth, color: Color(0xFF2E7D32)),
                                       onPressed: () => _connectToDevice(device.device),
                                     ),
                               onTap: () => _connectToDevice(device.device),
@@ -305,7 +305,7 @@ class _BluetoothScanPageState extends State<BluetoothScanPage> {
                 icon: Icon(_isScanning ? Icons.stop : Icons.bluetooth_searching),
                 label: Text(_isScanning ? 'Scanning...' : 'Scan for Devices'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6C63FF),
+                  backgroundColor: const Color(0xFF2E7D32),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),

@@ -173,7 +173,7 @@ class _DoctorAppointmentPageState extends State<DoctorAppointmentPage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        CircularProgressIndicator(color: Color(0xFF6C63FF)),
+                        CircularProgressIndicator(color: Color(0xFF2E7D32)),
                         SizedBox(height: 16),
                         Text('Finding nearby doctors...'),
                       ],
@@ -195,7 +195,7 @@ class _DoctorAppointmentPageState extends State<DoctorAppointmentPage> {
                                 icon: const Icon(Icons.refresh),
                                 label: const Text('Try Again'),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF6C63FF),
+                                  backgroundColor: const Color(0xFF2E7D32),
                                   foregroundColor: Colors.white,
                                 ),
                               ),
@@ -226,7 +226,7 @@ class _DoctorAppointmentPageState extends State<DoctorAppointmentPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF6C63FF) : Colors.grey.withOpacity(0.15),
+          color: isSelected ? const Color(0xFF2E7D32) : Colors.grey.withOpacity(0.15),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -264,10 +264,10 @@ class _DoctorAppointmentPageState extends State<DoctorAppointmentPage> {
               children: [
                 CircleAvatar(
                   radius: 24,
-                  backgroundColor: const Color(0xFF6C63FF).withOpacity(0.15),
+                  backgroundColor: const Color(0xFF2E7D32).withOpacity(0.15),
                   child: Text(
                     doctor.name.isNotEmpty ? doctor.name[0].toUpperCase() : '?',
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF6C63FF)),
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -357,7 +357,7 @@ class _DoctorAppointmentPageState extends State<DoctorAppointmentPage> {
                     icon: const Icon(Icons.videocam, size: 16),
                     label: const Text('Video Call', style: TextStyle(fontSize: 13)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6C63FF),
+                      backgroundColor: const Color(0xFF2E7D32),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

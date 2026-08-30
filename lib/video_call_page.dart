@@ -144,7 +144,7 @@ class _VideoCallPageState extends State<VideoCallPage> {
                 children: [
                   CircleAvatar(
                     radius: 50,
-                    backgroundColor: const Color(0xFF6C63FF),
+                    backgroundColor: const Color(0xFF2E7D32),
                     child: Text(
                       widget.doctorName.isNotEmpty ? widget.doctorName[0].toUpperCase() : '?',
                       style: const TextStyle(fontSize: 40, color: Colors.white),
@@ -187,7 +187,7 @@ class _VideoCallPageState extends State<VideoCallPage> {
                 children: [
                   CircleAvatar(
                     radius: 22,
-                    backgroundColor: const Color(0xFF6C63FF),
+                    backgroundColor: const Color(0xFF2E7D32),
                     child: Text(
                       widget.doctorName.isNotEmpty ? widget.doctorName[0].toUpperCase() : '?',
                       style: const TextStyle(fontSize: 18, color: Colors.white),
