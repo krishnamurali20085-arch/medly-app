@@ -69,6 +69,7 @@ class AppLocalizations {
       'Describe your symptoms or ask for first aid guidance':
           'உங்கள் அறிகுறிகளை விவரிக்கவும் அல்லது முதலுதவி வழிகாட்டுதலைக் கேட்கவும்',
       'Map': 'வரைபடம்',
+      'Find nearby care': 'அருகிலுள்ள சிகிச்சையைக் கண்டறியுங்கள்',
       'Distance': 'தூரம்',
       'ETA': 'எதிர்பார்க்கும் நேரம்',
       'Stop Navigation': 'வழிசெலுத்தலை நிறுத்து',
@@ -182,6 +183,7 @@ class AppLocalizations {
       'Describe your symptoms or ask for first aid guidance':
           'మీ లక్షణాలను వివరించండి లేదా ప్రథమ చికిత్స మార్గదర్శకత్వం అడగండి',
       'Map': 'మ్యాప్',
+      'Find nearby care': 'సమీపంలోని సంరక్షణను కనుగొనండి',
       'Distance': 'దూరం',
       'ETA': 'అంచనా సమయం',
       'Stop Navigation': 'నావిగేషన్ ఆపండి',
@@ -295,6 +297,7 @@ class AppLocalizations {
       'Describe your symptoms or ask for first aid guidance':
           'ನಿಮ್ಮ ಲಕ್ಷಣಗಳನ್ನು ವಿವರಿಸಿ ಅಥವಾ ಪ್ರಥಮ ಚಿಕಿತ್ಸೆ ಮಾರ್ಗದರ್ಶನ ಕೇಳಿ',
       'Map': 'ನಕ್ಷೆ',
+      'Find nearby care': 'ಹತ್ತಿರದ ಆರೈಕೆಯನ್ನು ಹುಡುಕಿ',
       'Distance': 'ದೂರ',
       'ETA': 'ಅಂದಾಜು ಸಮಯ',
       'Stop Navigation': 'ನಾವಿಗೇಶನ್ ನಿಲ್ಲಿಸಿ',
@@ -408,6 +411,7 @@ class AppLocalizations {
       'Describe your symptoms or ask for first aid guidance':
           'നിങ്ങളുടെ ലക്ഷണങ്ങൾ വിവരിക്കുകയോ പ്രഥമശുശ്രൂഷാ മാർഗനിർദേശം ചോദിക്കുകയോ ചെയ്യുക',
       'Map': 'മാപ്പ്',
+      'Find nearby care': 'അടുത്തുള്ള പരിപാലനം കണ്ടെത്തുക',
       'Distance': 'ദൂരം',
       'ETA': 'എസ്റ്റിംഗ് സമയം',
       'Stop Navigation': 'നാവിഗേഷൻ നിർത്തുക',
@@ -521,6 +525,7 @@ class AppLocalizations {
       'Describe your symptoms or ask for first aid guidance':
           'अपने लक्षण बताएं या प्राथमिक उपचार मार्गदर्शन पूछें',
       'Map': 'मानचित्र',
+      'Find nearby care': 'नजदीकी देखभाल खोजें',
       'Distance': 'दूरी',
       'ETA': 'अनुमानित समय',
       'Stop Navigation': 'नेविगेशन रोकें',
@@ -634,6 +639,7 @@ class AppLocalizations {
       'Describe your symptoms or ask for first aid guidance':
           'तुमची लक्षणे सांगा किंवा प्राथमिक उपचार मार्गदर्शन विचारा',
       'Map': 'नकाशा',
+      'Find nearby care': 'जवळील काळजी शोधा',
       'Distance': 'अंतर',
       'ETA': 'अंदाजे वेळ',
       'Stop Navigation': 'नेव्हिगेशन थांबवा',
@@ -747,6 +753,7 @@ class AppLocalizations {
       'Describe your symptoms or ask for first aid guidance':
           'اپنی علامات بیان کریں یا ابتدائی طبی امداد کی رہنمائی پوچھیں',
       'Map': 'نقشه',
+      'Find nearby care': 'قریب کی دیکھ بھال تلاش کریں',
       'Distance': 'فاصلہ',
       'ETA': 'تخمینی وقت',
       'Stop Navigation': 'نیویگیشن بند کریں',
@@ -860,6 +867,7 @@ class AppLocalizations {
       'Describe your symptoms or ask for first aid guidance':
           'Décrivez vos symptômes ou demandez des conseils de premiers secours',
       'Map': 'Carte',
+      'Find nearby care': 'Trouver des soins à proximité',
       'Distance': 'Distance',
       'ETA': 'Temps estimé',
       'Stop Navigation': 'Arrêter la navigation',
@@ -973,6 +981,7 @@ class AppLocalizations {
       'Describe your symptoms or ask for first aid guidance':
           '症状を説明するか、応急処置の案内を尋ねてください',
       'Map': '地図',
+      'Find nearby care': '近隣の医療を探す',
       'Distance': '距離',
       'ETA': '到着予定時間',
       'Stop Navigation': 'ナビゲーションを停止',
