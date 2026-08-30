@@ -31,6 +31,7 @@ import 'services/health_report_service.dart';
 import 'pages/symptom_checker_page.dart';
 import 'pages/medical_id_card_page.dart';
 import 'pages/universal_scanner_page.dart';
+import 'pages/nutrition_tracker_page.dart';
 import 'services/offline_service.dart';
 import 'services/exercise_service.dart';
 import 'services/heart_rate_service.dart';
@@ -5656,6 +5657,19 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
                     );
                   }
                 }
+              },
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.restaurant_rounded, color: Colors.orange),
+              title: Text(_t('Nutrition Tracker')),
+              subtitle: Text(_t('Track calories and nutrition intake')),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => NutritionTrackerPage(language: widget.language),
+                  ),
+                );
               },
             ),
             const SizedBox(height: 12),
