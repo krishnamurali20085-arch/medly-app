@@ -1629,7 +1629,7 @@ class _MedlyHomePageState extends State<MedlyHomePage>
 
   // Step counter — hardware pedometer + accelerometer fallback
   int _todaySteps = 0;
-  int _stepGoal = 10000;
+  int _stepGoal = 6000;
   StreamSubscription<StepCount>? _stepCountSubscription;
   StreamSubscription<AccelerometerEvent>? _accelSubscription;
   int _stepOffset = 0;
@@ -1779,7 +1779,7 @@ class _MedlyHomePageState extends State<MedlyHomePage>
     _stepOffset = prefs.getInt('step_offset_$_todayDateKey') ?? 0;
     _lastSensorTotal = prefs.getInt('last_sensor_total_$_todayDateKey') ?? 0;
     _todaySteps = prefs.getInt('today_steps_$_todayDateKey') ?? 0;
-    _stepGoal = prefs.getInt('step_goal') ?? 10000;
+    _stepGoal = prefs.getInt('step_goal') ?? 6000;
     _waterGlasses = prefs.getInt('water_glasses_$_todayDateKey') ?? 0;
     _waterGoal = prefs.getInt('water_goal') ?? 8;
     // Load AI usage counter
