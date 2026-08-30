@@ -78,10 +78,17 @@ class _MedlyAppState extends State<MedlyApp> {
   @override
   void initState() {
     super.initState();
+    _loadTheme();
     _checkExistingLogin();
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) setState(() => _showSplash = false);
     });
+  }
+
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isDark = prefs.getBool('dark_mode') ?? false;
+    if (mounted) setState(() => _themeMode = isDark ? ThemeMode.dark : ThemeMode.light);
   }
 
   Future<void> _checkExistingLogin() async {
@@ -503,7 +510,11 @@ class _MedlyAppState extends State<MedlyApp> {
         home: OnboardingScreen(
           onComplete: _handleOnboardingComplete,
           themeMode: _themeMode,
-          onThemeChanged: (mode) => setState(() => _themeMode = mode),
+          onThemeChanged: (mode) async {
+            setState(() => _themeMode = mode);
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool('dark_mode', mode == ThemeMode.dark);
+          },
         ),
       );
     }
@@ -517,7 +528,11 @@ class _MedlyAppState extends State<MedlyApp> {
         themeMode: _themeMode,
         home: MedlyHomePage(
           themeMode: _themeMode,
-          onThemeChanged: (mode) => setState(() => _themeMode = mode),
+          onThemeChanged: (mode) async {
+            setState(() => _themeMode = mode);
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool('dark_mode', mode == ThemeMode.dark);
+          },
           caregiverName: _currentAccount.name,
           caregiverRole: _currentAccount.role,
           email: _currentAccount.email,
@@ -549,12 +564,20 @@ class _MedlyAppState extends State<MedlyApp> {
               onCreateAccount: _handleAccountCreated,
               onBack: () => setState(() => _showCreateAccount = false),
               themeMode: _themeMode,
-              onThemeChanged: (mode) => setState(() => _themeMode = mode),
+              onThemeChanged: (mode) async {
+            setState(() => _themeMode = mode);
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool('dark_mode', mode == ThemeMode.dark);
+          },
             )
           : LoginScreen(
               onLogin: _handleLogin,
               onCreateAccount: _handleCreateAccountStart,
-              onThemeChanged: (mode) => setState(() => _themeMode = mode),
+              onThemeChanged: (mode) async {
+            setState(() => _themeMode = mode);
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool('dark_mode', mode == ThemeMode.dark);
+          },
               themeMode: _themeMode,
             ),
     );
@@ -4265,6 +4288,8 @@ out center 100;
                       selectedPatientName: _selectedPatientName,
                       onPatientSelected: (name) => setState(() => _selectedPatientName = name),
                       onSignOut: widget.onSignOut,
+                      themeMode: widget.themeMode,
+                      onThemeChanged: widget.onThemeChanged,
                     ),
                   ),
                 );
@@ -4950,6 +4975,8 @@ class CaregiverSettingsPage extends StatefulWidget {
     required this.selectedPatientName,
     required this.onPatientSelected,
     required this.onSignOut,
+    this.themeMode = ThemeMode.light,
+    this.onThemeChanged,
   });
 
   final String caregiverName;
@@ -4959,6 +4986,8 @@ class CaregiverSettingsPage extends StatefulWidget {
   final String selectedPatientName;
   final ValueChanged<String> onPatientSelected;
   final VoidCallback onSignOut;
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode>? onThemeChanged;
 
   @override
   State<CaregiverSettingsPage> createState() => _CaregiverSettingsPageState();
@@ -5121,6 +5150,22 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
               },
             ),
             const SizedBox(height: 12),
+            // Dark Mode Toggle
+            SwitchListTile(
+              secondary: Icon(
+                widget.themeMode == ThemeMode.dark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                color: widget.themeMode == ThemeMode.dark ? Colors.amber : const Color(0xFF6C63FF),
+              ),
+              title: const Text('Dark Mode'),
+              subtitle: Text(widget.themeMode == ThemeMode.dark ? 'Dark theme active' : 'Light theme active'),
+              value: widget.themeMode == ThemeMode.dark,
+              activeColor: const Color(0xFF6C63FF),
+              onChanged: (val) {
+                widget.onThemeChanged?.call(val ? ThemeMode.dark : ThemeMode.light);
+                setState(() {});
+              },
+            ),
+            const Divider(),
             ListTile(
               leading: const Icon(Icons.description_rounded),
               title: const Text('Terms & Conditions'),
