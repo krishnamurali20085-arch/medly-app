@@ -1637,6 +1637,11 @@ class _MedlyHomePageState extends State<MedlyHomePage>
   static const int _stepCooldownMs = 350; // min ms between steps
   DateTime _lastStepTime = DateTime.fromMillisecondsSinceEpoch(0);
 
+  // Water intake tracker
+  int _waterGlasses = 0; // glasses consumed today (250ml each)
+  int _waterGoal = 8; // default 8 glasses = 2 liters
+  static const int _mlPerGlass = 250;
+
   String _t(String value) => AppLocalizations(_selectedLanguage).text(value);
 
   @override
@@ -1695,6 +1700,7 @@ class _MedlyHomePageState extends State<MedlyHomePage>
     // Schedule daily streak reminders (8 PM) and morning motivation (7 AM)
     await NotificationService.scheduleStreakReminder();
     await NotificationService.scheduleMorningMotivation();
+    await NotificationService.scheduleWaterReminders();
   }
 
   String _getLanguageCode(String lang) {
@@ -1764,7 +1770,9 @@ class _MedlyHomePageState extends State<MedlyHomePage>
     _lastSensorTotal = prefs.getInt('last_sensor_total_$_todayDateKey') ?? 0;
     _todaySteps = prefs.getInt('today_steps_$_todayDateKey') ?? 0;
     _stepGoal = prefs.getInt('step_goal') ?? 10000;
-    if (_todaySteps > 0) setState(() {});
+    _waterGlasses = prefs.getInt('water_glasses_$_todayDateKey') ?? 0;
+    _waterGoal = prefs.getInt('water_goal') ?? 8;
+    if (_todaySteps > 0 || _waterGlasses > 0) setState(() {});
 
     // Try hardware pedometer first
     try {
@@ -3217,6 +3225,10 @@ out center 100;
           ),
           const SizedBox(height: 20),
 
+          // Water Intake Tracker
+          _buildWaterTracker(),
+          const SizedBox(height: 20),
+
           // Health snapshot
           Row(
             children: [
@@ -4441,6 +4453,261 @@ out center 100;
     );
   }
 
+  // ---- Water Intake Tracker ----
+  Future<void> _addWaterGlass() async {
+    setState(() => _waterGlasses++);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('water_glasses_$_todayDateKey', _waterGlasses);
+    // Check if goal reached
+    if (_waterGlasses == _waterGoal && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_t('Water goal reached! Great job staying hydrated!')),
+          backgroundColor: Colors.blue,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  void _removeWaterGlass() {
+    if (_waterGlasses <= 0) return;
+    setState(() => _waterGlasses--);
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setInt('water_glasses_$_todayDateKey', _waterGlasses);
+    });
+  }
+
+  void _showWaterGoalDialog() {
+    int tempGoal = _waterGoal;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final mlTotal = tempGoal * _mlPerGlass;
+            return AlertDialog(
+              title: Text(_t('Set Water Goal')),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '$tempGoal ${_t('glasses')} ($mlTotal ml)',
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.blue),
+                  ),
+                  const SizedBox(height: 16),
+                  Slider(
+                    value: tempGoal.toDouble(),
+                    min: 2,
+                    max: 20,
+                    divisions: 18,
+                    label: '$tempGoal',
+                    activeColor: Colors.blue,
+                    onChanged: (v) => setDialogState(() => tempGoal = v.toInt()),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('2', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                      Text('20', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [4, 6, 8, 10, 12].map((preset) {
+                      return ActionChip(
+                        label: Text('$preset ${_t('glasses')}', style: const TextStyle(fontSize: 12)),
+                        backgroundColor: tempGoal == preset ? Colors.blue.withValues(alpha: 0.2) : null,
+                        onPressed: () => setDialogState(() => tempGoal = preset),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(_t('Cancel')),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    setState(() => _waterGoal = tempGoal);
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setInt('water_goal', _waterGoal);
+                    if (mounted) Navigator.pop(ctx);
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                  child: Text(_t('Save'), style: const TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildWaterTracker() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final progress = (_waterGlasses / _waterGoal).clamp(0.0, 1.0);
+    final mlConsumed = _waterGlasses * _mlPerGlass;
+    final mlGoal = _waterGoal * _mlPerGlass;
+    final goalReached = _waterGlasses >= _waterGoal;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF1E3A5F), const Color(0xFF0D2137)]
+              : [const Color(0xFFE3F2FD), const Color(0xFFBBDEFB)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.water_drop_rounded, color: Colors.blue, size: 24),
+              const SizedBox(width: 8),
+              Text(
+                _t('Water Intake'),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.blue.shade900),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: _showWaterGoalDialog,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: isDark ? 0.3 : 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${_waterGoal} ${_t('glasses')}',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.blue.shade900),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.edit, size: 12, color: isDark ? Colors.white70 : Colors.blue.shade700),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Progress bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 12,
+              backgroundColor: isDark ? Colors.white12 : Colors.blue.shade100,
+              valueColor: AlwaysStoppedAnimation<Color>(goalReached ? Colors.green : Colors.blue),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Stats row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '$mlConsumed ml / $mlGoal ml',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white70 : Colors.blue.shade800),
+              ),
+              Text(
+                goalReached ? '🎉 ${_t('Goal reached!')}' : '${mlGoal - mlConsumed} ml ${_t('remaining')}',
+                style: TextStyle(fontSize: 12, color: goalReached ? Colors.green : (isDark ? Colors.white60 : Colors.blue.shade600)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Glass icons row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(_waterGoal.clamp(1, 20), (i) {
+              final filled = i < _waterGlasses;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: GestureDetector(
+                  onTap: filled ? _removeWaterGlass : _addWaterGlass,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: 28,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: filled ? Colors.blue : (isDark ? Colors.white10 : Colors.blue.shade50),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: filled ? Colors.blue.shade700 : Colors.blue.shade200,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Icon(
+                      filled ? Icons.water_drop : Icons.water_drop_outlined,
+                      size: 18,
+                      color: filled ? Colors.white : Colors.blue.shade300,
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 12),
+          // Add / Remove buttons
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _removeWaterGlass,
+                  icon: const Icon(Icons.remove_circle_outline, size: 18),
+                  label: Text(_t('Remove glass')),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.orange.shade700,
+                    side: BorderSide(color: Colors.orange.shade300),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: goalReached ? null : _addWaterGlass,
+                  icon: const Icon(Icons.water_drop_rounded, size: 18),
+                  label: Text(_t('Add glass')),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.green,
+                    disabledForegroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: Text(
+              '${_t('250ml per glass')} • ${_waterGlasses}/${_waterGoal} ${_t('glasses')}',
+              style: TextStyle(fontSize: 11, color: isDark ? Colors.white60 : Colors.blue.shade600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showEditProfileDialog() {
     final bgController = TextEditingController(text: widget.bloodGroup ?? '');
     final allergiesController = TextEditingController(text: widget.allergies ?? '');
@@ -5009,12 +5276,12 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
           children: [
             ListTile(
               leading: const Icon(Icons.camera_alt_rounded),
-              title: const Text('Take Photo'),
+              title: Text(_t('Take Photo')),
               onTap: () => Navigator.pop(ctx, ImageSource.camera),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_rounded),
-              title: const Text('Choose from Gallery'),
+              title: Text(_t('Choose from Gallery')),
               onTap: () => Navigator.pop(ctx, ImageSource.gallery),
             ),
           ],
@@ -5033,7 +5300,7 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text(_t('Settings'))),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -5083,25 +5350,25 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Account', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        Text(_t('Account'), style: const TextStyle(fontSize: 12, color: Colors.grey)),
                         const SizedBox(height: 4),
                         Text(widget.caregiverName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
-                        Text('Role: ${widget.caregiverRole}'),
+                        Text('${_t('Role')}: ${widget.caregiverRole}'),
                       ],
                     ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.camera_alt_rounded, color: Color(0xFF2E7D32)),
                     onPressed: _pickProfilePhoto,
-                    tooltip: 'Change photo',
+                    tooltip: _t('Change photo'),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 20),
             if (widget.patients.isNotEmpty) ...[
-              const Text('Linked patients', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(_t('Linked patients'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               ...widget.patients.map((patient) {
                 final isSelected = _selectedPatientName == patient.name;
@@ -5112,12 +5379,12 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
                       child: Icon(Icons.person_rounded, color: isSelected ? Colors.green : Colors.grey),
                     ),
                     title: Text(patient.name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-                    subtitle: isSelected ? const Text('Currently selected', style: TextStyle(fontSize: 12, color: Colors.green)) : null,
+                    subtitle: isSelected ? Text(_t('Currently selected'), style: const TextStyle(fontSize: 12, color: Colors.green)) : null,
                     trailing: isSelected
                         ? Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(12)),
-                            child: const Text('Active', style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold)),
+                            child: Text(_t('Active'), style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold)),
                           )
                         : const Icon(Icons.arrow_forward_ios_rounded, size: 16),
                     onTap: () {
@@ -5132,11 +5399,11 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
             const SizedBox(height: 12),
             ListTile(
               leading: const Icon(Icons.smart_toy_rounded),
-              title: const Text('AI Assistant'),
-              subtitle: const Text('Powered by Gemini AI (built-in)'),
+              title: Text(_t('AI Assistant')),
+              subtitle: Text(_t('Powered by Gemini AI')),
               onTap: () {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('AI is ready! Tap the robot icon on the Home tab to use it.')),
+                  SnackBar(content: Text(_t('AI is ready'))),
                 );
               },
             ),
@@ -5147,8 +5414,8 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
                 widget.themeMode == ThemeMode.dark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
                 color: widget.themeMode == ThemeMode.dark ? Colors.amber : const Color(0xFF2E7D32),
               ),
-              title: const Text('Dark Mode'),
-              subtitle: Text(widget.themeMode == ThemeMode.dark ? 'Dark theme active' : 'Light theme active'),
+              title: Text(_t('Dark Mode')),
+              subtitle: Text(widget.themeMode == ThemeMode.dark ? _t('Dark theme active') : _t('Light theme active')),
               value: widget.themeMode == ThemeMode.dark,
               activeColor: const Color(0xFF2E7D32),
               onChanged: (val) {
@@ -5159,8 +5426,8 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
             const Divider(),
             ListTile(
               leading: const Icon(Icons.description_rounded),
-              title: const Text('Terms & Conditions'),
-              subtitle: const Text('View app terms and privacy policy'),
+              title: Text(_t('Terms & Conditions')),
+              subtitle: Text(_t('View app terms and privacy policy')),
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const TermsAndConditionsPage()),
@@ -5169,20 +5436,20 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
             ),
             ListTile(
               leading: const Icon(Icons.history_rounded),
-              title: const Text('SOS Call Log'),
-              subtitle: const Text('View emergency call history'),
+              title: Text(_t('SOS Call Log')),
+              subtitle: Text(_t('View emergency call history')),
               onTap: () async {
                 final logs = await DatabaseService.getSosLog();
                 if (!context.mounted) return;
                 showDialog(
                   context: context,
                   builder: (ctx) => AlertDialog(
-                    title: const Text('SOS Call Log'),
+                    title: Text(_t('SOS Call Log')),
                     content: SizedBox(
                       width: 300,
                       height: 400,
                       child: logs.isEmpty
-                          ? const Center(child: Text('No SOS calls recorded yet.'))
+                          ? Center(child: Text(_t('No SOS calls recorded yet')))
                           : ListView.builder(
                               itemCount: logs.length,
                               itemBuilder: (_, i) => Card(
@@ -5195,7 +5462,7 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
                             ),
                     ),
                     actions: [
-                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+                      TextButton(onPressed: () => Navigator.pop(ctx), child: Text(_t('Close'))),
                     ],
                   ),
                 );
@@ -5204,8 +5471,8 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
             const SizedBox(height: 12),
             ListTile(
               leading: const Icon(Icons.storage_rounded),
-              title: const Text('Database Viewer'),
-              subtitle: const Text('View all stored data'),
+              title: Text(_t('Database Viewer')),
+              subtitle: Text(_t('View all stored data')),
               onTap: () async {
                 final hasAccess = await DatabaseService.hasDbAccess(widget.caregiverEmail);
                 if (!context.mounted) return;
@@ -5218,7 +5485,7 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
                   );
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Access denied. Only authorized accounts can view the database.')),
+                    SnackBar(content: Text(_t('Access denied'))),
                   );
                 }
               },
@@ -5243,8 +5510,8 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
             const SizedBox(height: 12),
             ListTile(
               leading: const Icon(Icons.local_hospital_rounded, color: Colors.red),
-              title: const Text('Doctor Appointments'),
-              subtitle: const Text('Find doctors nearby & video call'),
+              title: Text(_t('Doctor Appointments')),
+              subtitle: Text(_t('Find doctors nearby')),
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const DoctorAppointmentPage()),
@@ -5258,21 +5525,21 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
               child: OutlinedButton.icon(
                 onPressed: () async {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Testing MongoDB connection...')),
+                    SnackBar(content: Text(_t('Testing connection...'))),
                   );
                   final connected = await SupabaseService.testConnection();
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(connected
-                            ? 'Supabase connected successfully!' : 'Supabase connection failed. Check API key.'),
+                            ? _t('Connected successfully!') : _t('Connection failed')),
                         backgroundColor: connected ? Colors.green : Colors.red,
                       ),
                     );
                   }
                 },
                 icon: const Icon(Icons.cloud_rounded),
-                label: const Text('Test Supabase Connection'),
+                label: Text(_t('Test Connection')),
               ),
             ),
             const SizedBox(height: 12),
@@ -5284,7 +5551,7 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
                   Navigator.of(context).popUntil((route) => route.isFirst);
                 },
                 icon: const Icon(Icons.logout_rounded),
-                label: const Text('Sign out'),
+                label: Text(_t('Sign out')),
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
               ),
             ),

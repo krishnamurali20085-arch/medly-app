@@ -549,4 +549,65 @@ class NotificationService {
 
     print('[Notifications] Morning motivation scheduled for 7:00 AM daily');
   }
+
+  // ---- Water Intake Reminders ----
+  /// Schedule hourly water reminders from 8 AM to 8 PM
+  static Future<void> scheduleWaterReminders() async {
+    await initialize();
+    await requestPermission();
+
+    const androidDetails = AndroidNotificationDetails(
+      'medly_water_reminders',
+      'Water Reminders',
+      channelDescription: 'Hourly reminders to drink water',
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
+      icon: '@mipmap/ic_launcher',
+    );
+    const details = NotificationDetails(android: androidDetails);
+
+    // Cancel existing water reminders
+    for (int hour = 8; hour <= 20; hour++) {
+      await _plugin.cancel(9000 + hour);
+    }
+
+    final now = tz.TZDateTime.now(tz.local);
+    final messages = [
+      '💧 Time to drink water! Stay hydrated.',
+      '💧 Your body needs water. Take a sip!',
+      '💧 Water break! Keep your hydration on track.',
+      '💧 Feeling thirsty? Drink a glass of water now.',
+      '💧 Hydration reminder: Water is good for your health!',
+    ];
+
+    for (int hour = 8; hour <= 20; hour++) {
+      var scheduledDate = tz.TZDateTime(tz.local, now.year, now.month, now.day, hour);
+      if (scheduledDate.isBefore(now)) {
+        scheduledDate = scheduledDate.add(const Duration(days: 1));
+      }
+      final msg = messages[hour % messages.length];
+
+      await _plugin.zonedSchedule(
+        9000 + hour,
+        'Water Reminder 💧',
+        msg,
+        scheduledDate,
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: DateTimeComponents.time,
+        payload: 'water_reminder',
+      );
+    }
+    print('[Notifications] Water reminders scheduled (8 AM - 8 PM hourly)');
+  }
+
+  /// Cancel all water reminders
+  static Future<void> cancelWaterReminders() async {
+    for (int hour = 8; hour <= 20; hour++) {
+      await _plugin.cancel(9000 + hour);
+    }
+    print('[Notifications] Water reminders cancelled');
+  }
 }
