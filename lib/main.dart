@@ -1601,6 +1601,7 @@ class _MedlyHomePageState extends State<MedlyHomePage>
 
   // Step counter — hardware pedometer + accelerometer fallback
   int _todaySteps = 0;
+  int _stepGoal = 10000;
   StreamSubscription<StepCount>? _stepCountSubscription;
   StreamSubscription<AccelerometerEvent>? _accelSubscription;
   int _stepOffset = 0;
@@ -1739,6 +1740,7 @@ class _MedlyHomePageState extends State<MedlyHomePage>
     _stepOffset = prefs.getInt('step_offset_$_todayDateKey') ?? 0;
     _lastSensorTotal = prefs.getInt('last_sensor_total_$_todayDateKey') ?? 0;
     _todaySteps = prefs.getInt('today_steps_$_todayDateKey') ?? 0;
+    _stepGoal = prefs.getInt('step_goal') ?? 10000;
     if (_todaySteps > 0) setState(() {});
 
     // Try hardware pedometer first
@@ -3150,20 +3152,33 @@ out center 100;
                       ),
                       const SizedBox(height: 4),
                       LinearProgressIndicator(
-                        value: (_todaySteps / 10000).clamp(0.0, 1.0),
+                        value: (_todaySteps / _stepGoal).clamp(0.0, 1.0),
                         backgroundColor: Colors.teal.withValues(alpha: 0.2),
-                        color: _todaySteps >= 10000 ? Colors.green : Colors.teal,
+                        color: _todaySteps >= _stepGoal ? Colors.green : Colors.teal,
                         minHeight: 6,
                         borderRadius: BorderRadius.circular(3),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        _todaySteps >= 10000
-                            ? _t('Goal reached! 🎉')
-                            : '${10000 - _todaySteps} ${_t('steps to goal')}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: isDark ? Colors.white70 : Colors.teal.shade700,
+                      GestureDetector(
+                        onTap: _showStepGoalDialog,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                _todaySteps >= _stepGoal
+                                    ? _t('Goal reached! 🎉')
+                                    : '${_stepGoal - _todaySteps} ${_t('steps to goal')}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: isDark ? Colors.white70 : Colors.teal.shade700,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(Icons.edit, size: 10, color: isDark ? Colors.white38 : Colors.teal.shade400),
+                          ],
                         ),
                       ),
                     ],
@@ -4337,6 +4352,79 @@ out center 100;
           ],
         ),
       ),
+    );
+  }
+
+  void _showStepGoalDialog() {
+    int tempGoal = _stepGoal;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              title: Text(_t('Set Step Goal')),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '$tempGoal ${_t('steps')}',
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF6C63FF)),
+                  ),
+                  const SizedBox(height: 16),
+                  Slider(
+                    value: tempGoal.toDouble(),
+                    min: 200,
+                    max: 6000,
+                    divisions: 58,
+                    label: '$tempGoal',
+                    activeColor: const Color(0xFF6C63FF),
+                    onChanged: (v) => setDialogState(() => tempGoal = v.toInt()),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('200', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                      Text('6000', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Quick preset buttons
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [500, 1000, 2000, 3000, 5000].map((preset) {
+                      return ActionChip(
+                        label: Text('$preset', style: const TextStyle(fontSize: 12)),
+                        backgroundColor: tempGoal == preset
+                            ? const Color(0xFF6C63FF).withValues(alpha: 0.2)
+                            : null,
+                        onPressed: () => setDialogState(() => tempGoal = preset),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(_t('Cancel')),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    setState(() => _stepGoal = tempGoal);
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setInt('step_goal', _stepGoal);
+                    if (mounted) Navigator.pop(ctx);
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF)),
+                  child: Text(_t('Save'), style: const TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
