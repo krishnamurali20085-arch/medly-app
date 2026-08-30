@@ -4337,14 +4337,14 @@ out center 100;
           border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black12, width: 1)),
         ),
         child: NavigationBar(
-          height: 72,
+          height: 78,
           elevation: 0,
           backgroundColor: Colors.transparent,
           indicatorColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.18),
           selectedIndex: _selectedIndex,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
           onDestinationSelected: (i) {
             if (i == 3) {
-              // Map tab → open full-screen live map
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => ClinicMapPage(
@@ -4358,10 +4358,10 @@ out center 100;
             }
           },
           destinations: [
-            NavigationDestination(icon: const Icon(Icons.home_rounded), label: _t('Home')),
-            NavigationDestination(icon: const Icon(Icons.sos_rounded), label: _t('SOS')),
-            NavigationDestination(icon: const Icon(Icons.monitor_heart_rounded), label: _t('Health')),
-            NavigationDestination(icon: const Icon(Icons.map_rounded), label: _t('Map')),
+            NavigationDestination(icon: const Icon(Icons.home_rounded), selectedIcon: const Icon(Icons.home_rounded, color: Color(0xFF6C63FF)), label: _t('Home')),
+            NavigationDestination(icon: const Icon(Icons.sos_rounded), selectedIcon: const Icon(Icons.sos_rounded, color: Color(0xFF6C63FF)), label: _t('SOS')),
+            NavigationDestination(icon: const Icon(Icons.monitor_heart_rounded), selectedIcon: const Icon(Icons.monitor_heart_rounded, color: Color(0xFF6C63FF)), label: _t('Health')),
+            NavigationDestination(icon: const Icon(Icons.map_rounded), selectedIcon: const Icon(Icons.map_rounded, color: Color(0xFF6C63FF)), label: _t('Map')),
           ],
         ),
       ),
