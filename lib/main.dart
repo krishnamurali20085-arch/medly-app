@@ -31,6 +31,7 @@ import 'services/notification_service.dart';
 import 'services/health_report_service.dart';
 import 'pages/symptom_checker_page.dart';
 import 'pages/medical_id_card_page.dart';
+import 'pages/sos_history_page.dart';
 import 'pages/universal_scanner_page.dart';
 import 'pages/nutrition_tracker_page.dart';
 import 'services/offline_service.dart';
@@ -6113,6 +6114,25 @@ class _CaregiverSettingsPageState extends State<CaregiverSettingsPage> {
               },
             ),
             const SizedBox(height: 12),
+            // SOS History — admin only
+            if (DatabaseService.isOwner(widget.caregiverEmail))
+              ListTile(
+                leading: const Icon(Icons.shield_rounded, color: Colors.red),
+                title: Text(_t('SOS History')),
+                subtitle: Text(_t('View all SOS triggers with location')),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => SosHistoryPage(
+                        language: widget.language,
+                        currentUserEmail: widget.caregiverEmail,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            if (DatabaseService.isOwner(widget.caregiverEmail))
+              const SizedBox(height: 12),
             ListTile(
               leading: const Icon(Icons.storage_rounded),
               title: Text(_t('Database Viewer')),
