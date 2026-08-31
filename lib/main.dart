@@ -1635,12 +1635,14 @@ class _MedlyHomePageState extends State<MedlyHomePage>
   int _stepOffset = 0;
   int _lastSensorTotal = 0;
   bool _pedometerAvailable = false;
+  Timer? _stepRefreshTimer; // Periodic refresh to keep steps updating
   // Accelerometer-based step detection
   double _lastAccelMagnitude = 0;
   int _accelStepCount = 0;
-  static const double _stepThreshold = 12.0; // m/s² threshold for step detection
-  static const int _stepCooldownMs = 350; // min ms between steps
+  double _stepThreshold = 11.5; // Adaptive threshold for step detection
+  static const int _stepCooldownMs = 300; // min ms between steps
   DateTime _lastStepTime = DateTime.fromMillisecondsSinceEpoch(0);
+  double _accelGravityBaseline = 9.81; // Device-specific gravity baseline
 
   // Water intake tracker
   int _waterGlasses = 0; // glasses consumed today (250ml each)
@@ -1733,6 +1735,7 @@ class _MedlyHomePageState extends State<MedlyHomePage>
     WidgetsBinding.instance.removeObserver(this);
     _stepCountSubscription?.cancel();
     _accelSubscription?.cancel();
+    _stepRefreshTimer?.cancel();
     _bleHRSubscription?.cancel();
     _medicineNameController.dispose();
     _medicineTimeController.dispose();
@@ -1745,12 +1748,22 @@ class _MedlyHomePageState extends State<MedlyHomePage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       _recordScreenTime();
+      _saveStepCount();
     } else if (state == AppLifecycleState.resumed) {
       _appOpenTime = DateTime.now();
-      // One-time sensor read to capture steps taken while app was in background
-      _readStepSensorOnce();
-      // Also reload saved steps as fallback
+      // Check for day rollover first
+      final newDateKey = _dateKey(DateTime.now());
+      if (newDateKey != _todayDateKey) {
+        _todayDateKey = newDateKey;
+        _stepOffset = 0;
+        _todaySteps = 0;
+        _accelStepCount = 0;
+        _lastSensorTotal = 0;
+      }
+      // Reload saved steps first so we don't lose any
       _loadSavedSteps();
+      // Re-initialize pedometer stream properly
+      _restartStepCounter();
       // Sync pending SOS events when back online
       _syncPendingSosEvents();
       // Refresh nearby services
@@ -1794,6 +1807,36 @@ class _MedlyHomePageState extends State<MedlyHomePage>
     }
     if (_todaySteps > 0 || _waterGlasses > 0) setState(() {});
 
+    // Start periodic refresh timer — updates step count every 60 seconds
+    _stepRefreshTimer?.cancel();
+    _stepRefreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (mounted) _refreshStepCount();
+    });
+
+    // Start the pedometer or accelerometer
+    _startStepStreams();
+  }
+
+  /// Restart step counter streams (called on app resume)
+  void _restartStepCounter() {
+    // Cancel existing streams cleanly
+    _stepCountSubscription?.cancel();
+    _stepCountSubscription = null;
+    _accelSubscription?.cancel();
+    _accelSubscription = null;
+    _pedometerAvailable = false;
+    _lastStepTime = DateTime.fromMillisecondsSinceEpoch(0);
+    _lastAccelMagnitude = 0;
+    // Restart periodic timer
+    _stepRefreshTimer?.cancel();
+    _stepRefreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (mounted) _refreshStepCount();
+    });
+    // Re-start streams
+    _startStepStreams();
+  }
+
+  void _startStepStreams() {
     // Try hardware pedometer first
     try {
       _stepCountSubscription = Pedometer.stepCountStream.listen(
@@ -1815,13 +1858,46 @@ class _MedlyHomePageState extends State<MedlyHomePage>
       _startAccelerometerFallback();
     }
 
-    // If pedometer doesn't emit within 3 seconds, use accelerometer
-    Future.delayed(const Duration(seconds: 3), () {
+    // If pedometer doesn't emit within 4 seconds, use accelerometer
+    Future.delayed(const Duration(seconds: 4), () {
       if (!_pedometerAvailable && mounted) {
         print('[StepCounter] Pedometer not available, using accelerometer');
         _startAccelerometerFallback();
       }
     });
+  }
+
+  /// Periodic refresh — re-reads the pedometer sensor to catch steps
+  /// taken while app was in the background
+  void _refreshStepCount() async {
+    if (_pedometerAvailable) {
+      // Pedometer stream is active — it's already updating, but force a
+      // one-shot re-read to catch any buffered background steps
+      try {
+        StreamSubscription? sub;
+        final completer = Completer<void>();
+        sub = Pedometer.stepCountStream.listen(
+          (StepCount event) {
+            _updateStepCount(event.steps);
+            if (!completer.isCompleted) completer.complete();
+            sub?.cancel();
+          },
+          onError: (_) {
+            if (!completer.isCompleted) completer.complete();
+            sub?.cancel();
+          },
+        );
+        Future.delayed(const Duration(seconds: 5), () {
+          if (!completer.isCompleted) {
+            completer.complete();
+            sub?.cancel();
+          }
+        });
+        await completer.future;
+      } catch (_) {}
+    }
+    // Always save the current count
+    _saveStepCount();
   }
 
   void _startAccelerometerFallback() {
@@ -1847,23 +1923,26 @@ class _MedlyHomePageState extends State<MedlyHomePage>
     final now = DateTime.now();
     final timeSinceLastStep = now.difference(_lastStepTime).inMilliseconds;
 
+    // Adapt gravity baseline using exponential moving average
+    // This accounts for different device orientations (in hand, in pocket, etc.)
+    _accelGravityBaseline = _accelGravityBaseline * 0.95 + magnitude * 0.05;
+    // Threshold is 2.0 m/s² above the running gravity baseline
+    _stepThreshold = _accelGravityBaseline + 2.0;
+    // Clamp threshold to reasonable range
+    _stepThreshold = _stepThreshold.clamp(11.0, 16.0);
+
     // Detect a step: magnitude spikes above threshold with cooldown
     if (magnitude > _stepThreshold &&
         _lastAccelMagnitude <= _stepThreshold &&
         timeSinceLastStep > _stepCooldownMs) {
       _accelStepCount++;
       _lastStepTime = now;
-      // Update total steps (accel steps + any previously saved)
-      final prefs = SharedPreferences.getInstance();
-      prefs.then((p) {
-        final savedAccelOffset = p.getInt('accel_offset_$_todayDateKey') ?? 0;
-        if (savedAccelOffset == 0 && _accelStepCount == 1) {
-          p.setInt('accel_offset_$_todayDateKey', 0);
-        }
-      });
       if (mounted) {
         setState(() => _todaySteps++);
-        _saveStepCount();
+        // Save every 5 accel steps to reduce disk I/O
+        if (_accelStepCount % 5 == 0) {
+          _saveStepCount();
+        }
       }
     }
     _lastAccelMagnitude = magnitude;
@@ -1888,35 +1967,6 @@ class _MedlyHomePageState extends State<MedlyHomePage>
       await prefs.setInt('today_steps_$_todayDateKey', _todaySteps);
       await prefs.setInt('last_sensor_total_$_todayDateKey', totalSteps);
       _lastSensorTotal = totalSteps;
-    }
-  }
-
-  /// One-time sensor read — captures steps taken while app was closed
-  Future<void> _readStepSensorOnce() async {
-    try {
-      StreamSubscription? sub;
-      final completer = Completer<void>();
-      sub = Pedometer.stepCountStream.listen(
-        (StepCount event) {
-          _updateStepCount(event.steps);
-          completer.complete();
-          sub?.cancel();
-        },
-        onError: (_) {
-          completer.complete();
-          sub?.cancel();
-        },
-      );
-      // Timeout after 5 seconds
-      Future.delayed(const Duration(seconds: 5), () {
-        if (!completer.isCompleted) {
-          completer.complete();
-          sub?.cancel();
-        }
-      });
-      await completer.future;
-    } catch (e) {
-      print('[StepCounter] One-time read error: $e');
     }
   }
 
@@ -3598,13 +3648,36 @@ out center 100;
                   ),
                 ),
                 const SizedBox(height: 10),
-                TextField(
-                  controller: _medicineTimeController,
-                  keyboardType: TextInputType.datetime,
-                  decoration: InputDecoration(
-                    labelText: _t('Time'),
-                    hintText: '08:00 AM',
-                    prefixIcon: const Icon(Icons.schedule_rounded),
+                // Clock-like time picker
+                GestureDetector(
+                  onTap: _showMedicineTimePicker,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade400),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.access_time_rounded, color: Color(0xFF2E7D32)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _medicineTimeController.text.isNotEmpty
+                                ? _medicineTimeController.text
+                                : _t('Tap to select time'),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: _medicineTimeController.text.isNotEmpty
+                                  ? Colors.black87
+                                  : Colors.grey.shade500,
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.arrow_drop_down_rounded, color: Colors.grey),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -4497,6 +4570,175 @@ out center 100;
     );
   }
 
+  // ---- Clock-like Time Picker with AM/PM ----
+  int _pickerHour = 8;
+  int _pickerMinute = 0;
+  bool _pickerIsAM = true;
+
+  void _showMedicineTimePicker() {
+    // Parse existing time if any
+    if (_medicineTimeController.text.isNotEmpty) {
+      final existing = _medicineTimeController.text;
+      final match = RegExp(r'(\d{1,2}):(\d{2})\s*(AM|PM)', caseSensitive: false).firstMatch(existing);
+      if (match != null) {
+        _pickerHour = int.parse(match.group(1)!);
+        _pickerMinute = int.parse(match.group(2)!);
+        _pickerIsAM = match.group(3)!.toUpperCase() == 'AM';
+      }
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final displayHour = _pickerHour == 0 ? 12 : (_pickerHour > 12 ? _pickerHour - 12 : _pickerHour);
+            final timeStr = '${displayHour.toString().padLeft(2, '0')}:${_pickerMinute.toString().padLeft(2, '0')}';
+
+            return AlertDialog(
+              title: Text(_t('Select Time'), textAlign: TextAlign.center),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Time display
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2E7D32).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        GestureDetector(
+                          onTap: () => setDialogState(() => _pickerHour = (_pickerHour % 12) + 1),
+                          child: Text(
+                            displayHour.toString().padLeft(2, '0'),
+                            style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+                          ),
+                        ),
+                        const Text(':', style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32))),
+                        GestureDetector(
+                          onTap: () => setDialogState(() => _pickerMinute = (_pickerMinute + 5) % 60),
+                          child: Text(
+                            _pickerMinute.toString().padLeft(2, '0'),
+                            style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // AM/PM toggle
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              GestureDetector(
+                                onTap: () => setDialogState(() => _pickerIsAM = true),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: _pickerIsAM ? const Color(0xFF2E7D32) : Colors.transparent,
+                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                                  ),
+                                  child: Text('AM', style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: _pickerIsAM ? Colors.white : Colors.grey.shade600,
+                                  )),
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () => setDialogState(() => _pickerIsAM = false),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: !_pickerIsAM ? const Color(0xFF2E7D32) : Colors.transparent,
+                                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
+                                  ),
+                                  child: Text('PM', style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: !_pickerIsAM ? Colors.white : Colors.grey.shade600,
+                                  )),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Clock face
+                  SizedBox(
+                    width: 220,
+                    height: 220,
+                    child: CustomPaint(
+                      painter: _ClockPainter(
+                        hour: _pickerHour,
+                        minute: _pickerMinute,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Hour selector
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: () => setDialogState(() => _pickerHour = _pickerHour <= 1 ? 12 : _pickerHour - 1),
+                        icon: const Icon(Icons.remove_circle_outline, size: 32, color: Color(0xFF2E7D32)),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(_t('Hour'), style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                      const SizedBox(width: 16),
+                      IconButton(
+                        onPressed: () => setDialogState(() => _pickerHour = _pickerHour >= 12 ? 1 : _pickerHour + 1),
+                        icon: const Icon(Icons.add_circle_outline, size: 32, color: Color(0xFF2E7D32)),
+                      ),
+                      const SizedBox(width: 20),
+                      IconButton(
+                        onPressed: () => setDialogState(() => _pickerMinute = (_pickerMinute - 5 + 60) % 60),
+                        icon: const Icon(Icons.remove_circle_outline, size: 32, color: Colors.teal),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(_t('Min'), style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                      const SizedBox(width: 16),
+                      IconButton(
+                        onPressed: () => setDialogState(() => _pickerMinute = (_pickerMinute + 5) % 60),
+                        icon: const Icon(Icons.add_circle_outline, size: 32, color: Colors.teal),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(_t('Cancel')),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final ampm = _pickerIsAM ? 'AM' : 'PM';
+                    final hour12 = _pickerHour > 12 ? _pickerHour - 12 : (_pickerHour == 0 ? 12 : _pickerHour);
+                    final timeStr = '${hour12.toString().padLeft(2, '0')}:${_pickerMinute.toString().padLeft(2, '0')} $ampm';
+                    setState(() => _medicineTimeController.text = timeStr);
+                    Navigator.pop(ctx);
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32)),
+                  child: Text(_t('OK'), style: const TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _showStepGoalDialog() {
     int tempGoal = _stepGoal;
     showDialog(
@@ -5152,6 +5394,100 @@ class MedicineClockPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant MedicineClockPainter oldDelegate) =>
       oldDelegate.reminders != reminders;
+}
+
+// ---------------------------------------------------------------------------
+// Clock Painter for Time Picker
+// ---------------------------------------------------------------------------
+class _ClockPainter extends CustomPainter {
+  final int hour;
+  final int minute;
+
+  _ClockPainter({required this.hour, required this.minute});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) / 2 - 8;
+
+    // Clock face background
+    final facePaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, radius, facePaint);
+
+    // Clock face border
+    final borderPaint = Paint()
+      ..color = const Color(0xFF2E7D32).withOpacity(0.3)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    canvas.drawCircle(center, radius, borderPaint);
+
+    // Inner circle
+    final innerPaint = Paint()
+      ..color = const Color(0xFF2E7D32).withOpacity(0.05)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, radius * 0.85, innerPaint);
+
+    // Hour numbers
+    for (int i = 1; i <= 12; i++) {
+      final angle = (i * 30 - 90) * math.pi / 180;
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: '$i',
+          style: TextStyle(
+            fontSize: radius * 0.18,
+            fontWeight: i == (hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour))
+                ? FontWeight.bold
+                : FontWeight.w500,
+            color: i == (hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour))
+                ? const Color(0xFF2E7D32)
+                : Colors.grey.shade600,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final textPos = Offset(
+        center.dx + radius * 0.78 * math.cos(angle) - textPainter.width / 2,
+        center.dy + radius * 0.78 * math.sin(angle) - textPainter.height / 2,
+      );
+      textPainter.paint(canvas, textPos);
+    }
+
+    // Hour hand
+    final hourAngle = ((hour % 12) * 30 + minute * 0.5 - 90) * math.pi / 180;
+    final hourHandPaint = Paint()
+      ..color = const Color(0xFF1B5E20)
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      center,
+      Offset(center.dx + radius * 0.5 * math.cos(hourAngle), center.dy + radius * 0.5 * math.sin(hourAngle)),
+      hourHandPaint,
+    );
+
+    // Minute hand
+    final minuteAngle = (minute * 6 - 90) * math.pi / 180;
+    final minuteHandPaint = Paint()
+      ..color = const Color(0xFF2E7D32)
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      center,
+      Offset(center.dx + radius * 0.7 * math.cos(minuteAngle), center.dy + radius * 0.7 * math.sin(minuteAngle)),
+      minuteHandPaint,
+    );
+
+    // Center dot
+    final centerDotPaint = Paint()
+      ..color = const Color(0xFF2E7D32)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, 5, centerDotPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ClockPainter oldDelegate) =>
+      oldDelegate.hour != hour || oldDelegate.minute != minute;
 }
 
 // ---------------------------------------------------------------------------
