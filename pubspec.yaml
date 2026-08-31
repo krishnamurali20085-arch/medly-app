@@ -24,6 +24,7 @@ dependencies:
   flutter_map: ^8.2.2
   latlong2: ^0.9.1
   url_launcher: ^6.2.0
+  phone_state: ^4.0.1
   permission_handler: ^11.0.0
   sqflite: ^2.3.0
   path: ^1.8.0

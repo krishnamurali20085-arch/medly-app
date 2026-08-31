@@ -2300,8 +2300,8 @@ out center 100;
         title: Text(_t('Trigger SOS?')),
         content: Text(
           isOnline
-              ? _t('Tier 1 contact will receive a phone call. Other tiers will receive a WhatsApp message. Continue?')
-              : _t('You are OFFLINE. Tier 1 will be called directly. Other tiers will receive an SMS message. Continue?')
+              ? _t('Tier 1 will be called. If no answer, we auto-escalate to Tier 2, 3, etc. Continue?')
+              : _t('OFFLINE MODE: Tier 1 will be called. If no answer, we escalate through all tiers via SMS. Continue?')
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(_t('Cancel'))),
@@ -2366,16 +2366,6 @@ out center 100;
       }
     }
 
-    // Tier 1: direct phone call (works offline!)
-    final tier1 = contacts.firstWhere(
-      (c) => c['tier'] == '1',
-      orElse: () => contacts.first,
-    );
-    final callUri = Uri(scheme: 'tel', path: tier1['phone']);
-    if (await canLaunchUrl(callUri)) {
-      await launchUrl(callUri);
-    }
-
     // Build SOS message with patient info
     final patientInfo = await OfflineService.getCachedPatientInfo();
     final sosMessageBody = 'EMERGENCY SOS from Medly!\n'
@@ -2388,14 +2378,67 @@ out center 100;
         : '';
     final fullMessage = sosMessageBody + locationPart;
 
-    // Tiers 2-5: WhatsApp if online, SMS if offline
-    for (final c in contacts) {
-      if (c['tier'] != '1') {
-        final phone = c['phone']?.replaceAll(RegExp(r'[^0-9+]'), '') ?? '';
-        if (phone.isEmpty) continue;
+    // Sort contacts by tier (1 first, then 2, 3, 4, 5)
+    final sortedContacts = List<Map<String, String>>.from(contacts)
+      ..sort((a, b) => (int.tryParse(a['tier'] ?? '99') ?? 99)
+          .compareTo(int.tryParse(b['tier'] ?? '99') ?? 99));
 
+    // Auto-escalate through tiers until someone answers
+    bool answered = false;
+    int calledTierIndex = 0;
+    List<String> messagedTiers = [];
+
+    for (final c in sortedContacts) {
+      final tier = c['tier'] ?? '1';
+      final phone = c['phone']?.replaceAll(RegExp(r'[^0-9+]'), '') ?? '';
+      final name = c['name'] ?? 'Contact';
+      if (phone.isEmpty) continue;
+
+      // Call this tier
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Calling Tier $tier: $name...'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+
+      final callUri = Uri(scheme: 'tel', path: phone);
+      if (await canLaunchUrl(callUri)) {
+        await launchUrl(callUri);
+      }
+
+      // Wait and ask if they answered (30-second countdown)
+      if (!mounted) break;
+      final result = await _showCallTimeoutDialog(name, tier, 30);
+
+      if (result == true) {
+        // User confirmed they answered — stop escalating
+        answered = true;
+        calledTierIndex++;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Tier $tier ($name) answered! ✅'), backgroundColor: Colors.green),
+          );
+        }
+        break;
+      } else {
+        // No answer — message this contact and move to next tier
+        calledTierIndex++;
+        messagedTiers.add(tier);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Tier $tier ($name) did not answer. Escalating to next tier...'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+
+        // Send WhatsApp/SMS to the contact that didn't answer
         if (isOnline) {
-          // Try WhatsApp
           final sosMessage = Uri.encodeComponent(fullMessage);
           final whatsappUri = Uri.parse('https://wa.me/$phone?text=$sosMessage');
           try {
@@ -2404,7 +2447,6 @@ out center 100;
             }
           } catch (_) {}
         } else {
-          // Offline: send SMS (works without internet!)
           final smsUri = Uri(scheme: 'sms', path: phone, queryParameters: {'body': fullMessage});
           try {
             if (await canLaunchUrl(smsUri)) {
@@ -2415,11 +2457,161 @@ out center 100;
       }
     }
 
+    // Message remaining contacts (tiers not yet called) via WhatsApp/SMS
+    for (final c in sortedContacts) {
+      final tier = c['tier'] ?? '1';
+      if (messagedTiers.contains(tier) || answered) continue;
+      final phone = c['phone']?.replaceAll(RegExp(r'[^0-9+]'), '') ?? '';
+      if (phone.isEmpty) continue;
+
+      if (isOnline) {
+        final sosMessage = Uri.encodeComponent(fullMessage);
+        final whatsappUri = Uri.parse('https://wa.me/$phone?text=$sosMessage');
+        try {
+          if (await canLaunchUrl(whatsappUri)) {
+            await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
+          }
+        } catch (_) {}
+      } else {
+        final smsUri = Uri(scheme: 'sms', path: phone, queryParameters: {'body': fullMessage});
+        try {
+          if (await canLaunchUrl(smsUri)) {
+            await launchUrl(smsUri);
+          }
+        } catch (_) {}
+      }
+    }
+
     if (mounted) {
+      final msg = answered
+          ? 'SOS: Contact answered! Other tiers notified via WhatsApp.'
+          : 'SOS: All ${sortedContacts.length} contacts escalated. WhatsApp messages sent.';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('SOS sent! Calling ${tier1['name']}, messaging ${contacts.length - 1} contact(s) via WhatsApp.')),
+        SnackBar(content: Text(msg), backgroundColor: answered ? Colors.green : Colors.red),
       );
     }
+  }
+
+  /// Show a countdown dialog. Returns true if user taps "Answered", false if timer expires.
+  Future<bool?> _showCallTimeoutDialog(String contactName, String tier, int seconds) async {
+    int remaining = seconds;
+    bool? userSaidAnswered;
+    
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        // Start countdown timer
+        Timer.periodic(const Duration(seconds: 1), (timer) {
+          if (!ctx.mounted) {
+            timer.cancel();
+            return;
+          }
+          remaining--;
+          if (remaining <= 0) {
+            timer.cancel();
+            Navigator.pop(ctx, false);
+          }
+        });
+        
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            // Update dialog state every second via timer
+            Timer.periodic(const Duration(seconds: 1), (timer) {
+              if (!ctx.mounted) {
+                timer.cancel();
+                return;
+              }
+              setDialogState(() {});
+              if (remaining <= 0) timer.cancel();
+            });
+            
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Pulsing phone icon
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.phone_in_talk_rounded, color: Colors.orange.shade700, size: 48),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Calling Tier $tier',
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    contactName,
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  // Countdown circle
+                  SizedBox(
+                    width: 80,
+                    height: 80,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        CircularProgressIndicator(
+                          value: remaining / seconds,
+                          strokeWidth: 6,
+                          color: remaining > 10 ? Colors.orange : Colors.red,
+                          backgroundColor: Colors.grey.shade200,
+                        ),
+                        Text(
+                          '$remaining',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: remaining > 10 ? Colors.orange.shade700 : Colors.red,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    remaining > 0 ? 'Waiting for answer...' : 'No answer, escalating...',
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                  ),
+                ],
+              ),
+              actions: [
+                // Escalate now button
+                TextButton(
+                  onPressed: () {
+                    userSaidAnswered = false;
+                    Navigator.pop(ctx, false);
+                  },
+                  child: const Text('No Answer — Call Next', style: TextStyle(color: Colors.orange)),
+                ),
+                // Answered button
+                ElevatedButton(
+                  onPressed: () {
+                    userSaidAnswered = true;
+                    Navigator.pop(ctx, true);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('✅ They Answered'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    
+    return userSaidAnswered;
   }
 
   // ------- SOS Hold Button — 3-second hold to trigger -------

@@ -348,6 +348,9 @@ class AppLocalizations {
       'No SOS events recorded': 'SOS நிகழ்வுகள் பதிவு செய்யப்படவில்லை',
       'Emergency calls will appear here': 'அவசர அழைப்புகள் இங்கே தோன்றும்',
       'Call Contact': 'தொடர்பை அழை',
+    
+      'Tier 1 will be called. If no answer, we auto-escalate to Tier 2, 3, etc. Continue?': 'டியர் 1 அழைக்கப்படும். பதில் இல்லையெனில், டியர் 2, 3 போன்றவற்றுக்கு தானாக உயர்த்தப்படும். தொடரவா?',
+      'OFFLINE MODE: Tier 1 will be called. If no answer, we escalate through all tiers via SMS. Continue?': 'ஆஃப்லைன் பயன்முறை: டியர் 1 அழைக்கப்படும். பதில் இல்லையெனில், அனைத்து டியர்களுக்கும் SMS மூலம் உயர்த்தப்படும். தொடரவா?',
     },
     'Telugu': {
       'Caregiver Access': 'సంరక్షకుని ప్రవేశం',
@@ -640,6 +643,9 @@ class AppLocalizations {
       'No SOS events recorded': 'SOS ఈవెంట్లు రికార్డ్ చేయబడలేదు',
       'Emergency calls will appear here': 'అత్యవసర కాల్స్ ఇక్కడ కనిపిస్తాయి',
       'Call Contact': 'సంపర్కాన్ని కాల్ చేయండి',
+    
+      'Tier 1 will be called. If no answer, we auto-escalate to Tier 2, 3, etc. Continue?': 'టైర్ 1 కు కాల్ చేయబడుతుంది. సమాధానం లేకపోతే, టైర్ 2, 3 మొదలైన వాటికి ఆటో-ఎస్కలేట్ అవుతుంది. కొనసాగించాలా?',
+      'OFFLINE MODE: Tier 1 will be called. If no answer, we escalate through all tiers via SMS. Continue?': 'ఆఫ్‌లైన్ మోడ్: టైర్ 1 కు కాల్ చేయబడుతుంది. సమాధానం లేకపోతే, SMS ద్వారా అన్ని టైర్లకు ఎస్కలేట్ అవుతుంది. కొనసాగించాలా?',
     },
     'Kannada': {
       'Caregiver Access': 'ಪಾಲಕರ ಪ್ರವೇಶ',
@@ -932,6 +938,9 @@ class AppLocalizations {
       'No SOS events recorded': 'SOS ಘಟನೆಗಳು ದಾಖಲಿಸಲಾಗಿಲ್ಲ',
       'Emergency calls will appear here': 'ತುರ್ತು ಕರೆಗಳು ಇಲ್ಲಿ ಕಾಣಿಸಿಕೊಳ್ಳುತ್ತವೆ',
       'Call Contact': 'ಸಂಪರ್ಕವನ್ನು ಕರೆ ಮಾಡಿ',
+    
+      'Tier 1 will be called. If no answer, we auto-escalate to Tier 2, 3, etc. Continue?': 'ಟಿಯರ್ 1 ಗೆ ಕರೆ ಮಾಡಲಾಗುತ್ತದೆ. ಉತ್ತರ ಬಂದರೆ, ಟಿಯರ್ 2, 3 ಇತ್ಯಾದಿಗಳಿಗೆ ಸ್ವಯಂಚಾಲಿತವಾಗಿ ಹೆಚ್ಚಿಸಲಾಗುತ್ತದೆ. ಮುಂದುವರಿಯಬೇಕೇ?',
+      'OFFLINE MODE: Tier 1 will be called. If no answer, we escalate through all tiers via SMS. Continue?': 'ಆಫ್‌ಲೈನ್ ಮೋಡ್: ಟಿಯರ್ 1 ಗೆ ಕರೆ ಮಾಡಲಾಗುತ್ತದೆ. ಉತ್ತರ ಬಂದರೆ, SMS ಮೂಲಕ ಎಲ್ಲಾ ಟಿಯರ್‌ಗಳಿಗೆ ಹೆಚ್ಚಿಸಲಾಗುತ್ತದೆ. ಮುಂದುವರಿಯಬೇಕೇ?',
     },
     'Malayalam': {
       'Caregiver Access': 'പരിചാരക പ്രവേശനം',
@@ -1224,6 +1233,9 @@ class AppLocalizations {
       'No SOS events recorded': 'SOS ഇവന്റുകൾ രേഖപ്പെടുത്തിയിട്ടില്ല',
       'Emergency calls will appear here': 'അടിയന്തര കോളുകൾ ഇവിടെ ദൃശ്യമാകും',
       'Call Contact': 'കോൺടാക്റ്റ് വിളിക്കുക',
+    
+      'Tier 1 will be called. If no answer, we auto-escalate to Tier 2, 3, etc. Continue?': 'ടീയർ 1 വിളിക്കും. ഉത്തരം ലഭിച്ചില്ലെങ്കിൽ, ടീയർ 2, 3 തുടങ്ങിയവയിലേക്ക് ഓട്ടോ-എസ്കലേറ്റ് ചെയ്യും. തുടരണോ?',
+      'OFFLINE MODE: Tier 1 will be called. If no answer, we escalate through all tiers via SMS. Continue?': 'ഓഫ്‌ലൈൻ മോഡ്: ടീയർ 1 വിളിക്കും. ഉത്തരം ലഭിച്ചില്ലെങ്കിൽ, SMS വഴി എല്ലാ ടീയറുകളിലേക്കും എസ്കലേറ്റ് ചെയ്യും. തുടരണോ?',
     },
     'Hindi': {
       'Caregiver Access': 'देखभालकर्ता प्रवेश',
@@ -1516,6 +1528,9 @@ class AppLocalizations {
       'No SOS events recorded': 'SOS ईवेंट रिकॉर्ड नहीं किए गए',
       'Emergency calls will appear here': 'आपातकालीन कॉल यहाँ दिखाई देंगी',
       'Call Contact': 'संपर्क को कॉल करें',
+    
+      'Tier 1 will be called. If no answer, we auto-escalate to Tier 2, 3, etc. Continue?': 'टियर 1 को कॉल किया जाएगा। कोई जवाब नहीं आता है, तो टियर 2, 3 आदि में ऑटो-एस्केलेट हो जाएगा। जारी रखें?',
+      'OFFLINE MODE: Tier 1 will be called. If no answer, we escalate through all tiers via SMS. Continue?': 'ऑफ़लाइन मोड: टियर 1 को कॉल किया जाएगा। कोई जवाब नहीं आता है, तो SMS के माध्यम से सभी टियर में एस्केलेट हो जाएगा। जारी रखें?',
     },
     'Marathi': {
       'Caregiver Access': 'देखभालकर्ता प्रवेश',
@@ -1808,6 +1823,9 @@ class AppLocalizations {
       'No SOS events recorded': 'SOS घटना नोंदवल्या गेल्या नाहीत',
       'Emergency calls will appear here': 'आपत्कालीन कॉल येथे दिसतील',
       'Call Contact': 'संपर्काला कॉल करा',
+    
+      'Tier 1 will be called. If no answer, we auto-escalate to Tier 2, 3, etc. Continue?': 'टिअर 1 ला कॉल केला जाईल. उत्तर आले नाही, तर टिअर 2, 3 इत्यादींमध्ये ऑटो-एस्केलेट होईल. सुरू ठेवायचे?',
+      'OFFLINE MODE: Tier 1 will be called. If no answer, we escalate through all tiers via SMS. Continue?': 'ऑफलाइन मोड: टिअर 1 ला कॉल केला जाईल. उत्तर आले नाही, तर SMS द्वारे सर्व टिअरमध्ये एस्केलेट होईल. सुरू ठेवायचे?',
     },
     'Urdu': {
       'Caregiver Access': 'نگہداشت کنندہ رسائی',
@@ -2100,6 +2118,9 @@ class AppLocalizations {
       'No SOS events recorded': 'SOS واقعات ریکارڈ نہیں کیے گئے',
       'Emergency calls will appear here': 'ہنگامی کالز یہاں نظر آئیں گی',
       'Call Contact': 'رابطے کو کال کریں',
+    
+      'Tier 1 will be called. If no answer, we auto-escalate to Tier 2, 3, etc. Continue?': 'ٹئیر 1 کو کال کیا جائے گا۔ کوئی جواب نہیں آئے گا، تو ٹئیر 2، 3 وغیرہ میں خودکار ایسکیلیٹ ہو جائے گا۔ جاری رکھیں؟',
+      'OFFLINE MODE: Tier 1 will be called. If no answer, we escalate through all tiers via SMS. Continue?': 'آف لائن موڈ: ٹئیر 1 کو کال کیا جائے گا۔ کوئی جواب نہیں آئے گا، تو ایس ایم ایس کے ذریعے تمام ٹئیرز میں ایسکیلیٹ ہو جائے گا۔ جاری رکھیں؟',
     },
     'French': {
       'Caregiver Access': 'Accès aidant',
@@ -2392,6 +2413,9 @@ class AppLocalizations {
       'No SOS events recorded': 'Aucun événement SOS enregistré',
       'Emergency calls will appear here': 'Les appels d\'urgence apparaîtront ici',
       'Call Contact': 'Appeler le contact',
+    
+      'Tier 1 will be called. If no answer, we auto-escalate to Tier 2, 3, etc. Continue?': 'Le niveau 1 sera appelé. Sans réponse, escalation automatique vers le niveau 2, 3, etc. Continuer ?',
+      'OFFLINE MODE: Tier 1 will be called. If no answer, we escalate through all tiers via SMS. Continue?': 'MODE HORS LIGNE: Le niveau 1 sera appelé. Sans réponse, escalation par SMS vers tous les niveaux. Continuer ?',
     },
     'Japanese': {
       'Caregiver Access': '介護者アクセス',
@@ -2681,6 +2705,9 @@ class AppLocalizations {
       'No SOS events recorded': 'SOSイベントは記録されていません',
       'Emergency calls will appear here': '緊急通話はここに表示されます',
       'Call Contact': '連絡先に電話',
+    
+      'Tier 1 will be called. If no answer, we auto-escalate to Tier 2, 3, etc. Continue?': 'ティア1に電話します。応答がない場合、ティア2、3などに自動エスカレートします。続行しますか？',
+      'OFFLINE MODE: Tier 1 will be called. If no answer, we escalate through all tiers via SMS. Continue?': 'オフラインモード: ティア1に電話します。応答がない場合、SMSですべてのティアにエスカレートします。続行しますか？',
     },
   };
 
