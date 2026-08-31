@@ -18,6 +18,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:pedometer/pedometer.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'models/health_record.dart';
 import 'services/firebase_service.dart';
@@ -1640,7 +1641,7 @@ class _MedlyHomePageState extends State<MedlyHomePage>
   double _lastAccelMagnitude = 0;
   int _accelStepCount = 0;
   double _stepThreshold = 11.5; // Adaptive threshold for step detection
-  static const int _stepCooldownMs = 300; // min ms between steps
+  static const int _stepCooldownMs = 420; // min ms between steps (~143 steps/min walking cadence)
   DateTime _lastStepTime = DateTime.fromMillisecondsSinceEpoch(0);
   double _accelGravityBaseline = 9.81; // Device-specific gravity baseline
 
@@ -1813,6 +1814,14 @@ class _MedlyHomePageState extends State<MedlyHomePage>
       if (mounted) _refreshStepCount();
     });
 
+    // Request ACTIVITY_RECOGNITION permission (required on Android 10+)
+    try {
+      final activityStatus = await Permission.activityRecognition.status;
+      if (!activityStatus.isGranted) {
+        await Permission.activityRecognition.request();
+      }
+    } catch (_) {}
+
     // Start the pedometer or accelerometer
     _startStepStreams();
   }
@@ -1867,37 +1876,13 @@ class _MedlyHomePageState extends State<MedlyHomePage>
     });
   }
 
-  /// Periodic refresh — re-reads the pedometer sensor to catch steps
-  /// taken while app was in the background
-  void _refreshStepCount() async {
-    if (_pedometerAvailable) {
-      // Pedometer stream is active — it's already updating, but force a
-      // one-shot re-read to catch any buffered background steps
-      try {
-        StreamSubscription? sub;
-        final completer = Completer<void>();
-        sub = Pedometer.stepCountStream.listen(
-          (StepCount event) {
-            _updateStepCount(event.steps);
-            if (!completer.isCompleted) completer.complete();
-            sub?.cancel();
-          },
-          onError: (_) {
-            if (!completer.isCompleted) completer.complete();
-            sub?.cancel();
-          },
-        );
-        Future.delayed(const Duration(seconds: 5), () {
-          if (!completer.isCompleted) {
-            completer.complete();
-            sub?.cancel();
-          }
-        });
-        await completer.future;
-      } catch (_) {}
-    }
-    // Always save the current count
+  /// Periodic save — persists the current step count to disk
+  /// The pedometer stream already updates _todaySteps in real-time;
+  /// this just ensures we don't lose data if the app is killed.
+  void _refreshStepCount() {
     _saveStepCount();
+    // Force a setState to refresh the UI if steps changed
+    if (mounted) setState(() {});
   }
 
   void _startAccelerometerFallback() {
@@ -1924,23 +1909,25 @@ class _MedlyHomePageState extends State<MedlyHomePage>
     final timeSinceLastStep = now.difference(_lastStepTime).inMilliseconds;
 
     // Adapt gravity baseline using exponential moving average
-    // This accounts for different device orientations (in hand, in pocket, etc.)
-    _accelGravityBaseline = _accelGravityBaseline * 0.95 + magnitude * 0.05;
-    // Threshold is 2.0 m/s² above the running gravity baseline
-    _stepThreshold = _accelGravityBaseline + 2.0;
+    // Slower adaptation (0.98) so pocket/hand transitions don't cause false steps
+    _accelGravityBaseline = _accelGravityBaseline * 0.98 + magnitude * 0.02;
+    // Threshold: 2.5 m/s² above gravity baseline for reliable step detection
+    _stepThreshold = _accelGravityBaseline + 2.5;
     // Clamp threshold to reasonable range
-    _stepThreshold = _stepThreshold.clamp(11.0, 16.0);
+    _stepThreshold = _stepThreshold.clamp(11.5, 17.0);
 
-    // Detect a step: magnitude spikes above threshold with cooldown
-    if (magnitude > _stepThreshold &&
-        _lastAccelMagnitude <= _stepThreshold &&
-        timeSinceLastStep > _stepCooldownMs) {
+    // Peak detection: detect step when magnitude crosses threshold going UP
+    // and we have enough cooldown time since the last detected step
+    final crossedUp = magnitude > _stepThreshold && _lastAccelMagnitude <= _stepThreshold;
+    final crossedDown = magnitude <= _stepThreshold && _lastAccelMagnitude > _stepThreshold;
+
+    if (crossedUp && timeSinceLastStep > _stepCooldownMs) {
       _accelStepCount++;
       _lastStepTime = now;
       if (mounted) {
         setState(() => _todaySteps++);
-        // Save every 5 accel steps to reduce disk I/O
-        if (_accelStepCount % 5 == 0) {
+        // Save every 10 accel steps to reduce disk I/O
+        if (_accelStepCount % 10 == 0) {
           _saveStepCount();
         }
       }
