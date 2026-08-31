@@ -2438,9 +2438,10 @@ out center 100;
         }
 
         // Send WhatsApp/SMS to the contact that didn't answer
+        final waPhone = phone.replaceAll(RegExp(r'[^0-9]'), ''); // wa.me needs digits only
         if (isOnline) {
           final sosMessage = Uri.encodeComponent(fullMessage);
-          final whatsappUri = Uri.parse('https://wa.me/$phone?text=$sosMessage');
+          final whatsappUri = Uri.parse('https://wa.me/$waPhone?text=$sosMessage');
           try {
             if (await canLaunchUrl(whatsappUri)) {
               await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
@@ -2463,10 +2464,11 @@ out center 100;
       if (messagedTiers.contains(tier) || answered) continue;
       final phone = c['phone']?.replaceAll(RegExp(r'[^0-9+]'), '') ?? '';
       if (phone.isEmpty) continue;
+      final waPhone2 = phone.replaceAll(RegExp(r'[^0-9]'), ''); // wa.me needs digits only
 
       if (isOnline) {
         final sosMessage = Uri.encodeComponent(fullMessage);
-        final whatsappUri = Uri.parse('https://wa.me/$phone?text=$sosMessage');
+        final whatsappUri = Uri.parse('https://wa.me/$waPhone2?text=$sosMessage');
         try {
           if (await canLaunchUrl(whatsappUri)) {
             await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
