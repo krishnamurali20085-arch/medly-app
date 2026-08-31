@@ -2413,7 +2413,7 @@ out center 100;
 
       // Wait and ask if they answered (30-second countdown)
       if (!mounted) break;
-      final result = await _showCallTimeoutDialog(name, tier, 30);
+      final result = await _showCallTimeoutDialog(name, tier, 20);
 
       if (result == true) {
         // User confirmed they answered — stop escalating
