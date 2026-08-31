@@ -1645,6 +1645,12 @@ class _MedlyHomePageState extends State<MedlyHomePage>
   DateTime _lastStepTime = DateTime.fromMillisecondsSinceEpoch(0);
   double _accelGravityBaseline = 9.81; // Device-specific gravity baseline
 
+  // SOS hold button
+  bool _sosHolding = false;
+  double _sosHoldProgress = 0.0;
+  Timer? _sosHoldTimer;
+  DateTime? _sosHoldStart;
+
   // Water intake tracker
   int _waterGlasses = 0; // glasses consumed today (250ml each)
   int _waterGoal = 8; // default 8 glasses = 2 liters
@@ -1737,6 +1743,7 @@ class _MedlyHomePageState extends State<MedlyHomePage>
     _stepCountSubscription?.cancel();
     _accelSubscription?.cancel();
     _stepRefreshTimer?.cancel();
+    _sosHoldTimer?.cancel();
     _bleHRSubscription?.cancel();
     _medicineNameController.dispose();
     _medicineTimeController.dispose();
@@ -2412,6 +2419,104 @@ out center 100;
         SnackBar(content: Text('SOS sent! Calling ${tier1['name']}, messaging ${contacts.length - 1} contact(s) via WhatsApp.')),
       );
     }
+  }
+
+  // ------- SOS Hold Button — 3-second hold to trigger -------
+  Widget _buildSosHoldButton() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return GestureDetector(
+          onLongPressStart: (_) {
+            _sosHolding = true;
+            _sosHoldStart = DateTime.now();
+            _sosHoldProgress = 0.0;
+            _sosHoldTimer?.cancel();
+            _sosHoldTimer = Timer.periodic(const Duration(milliseconds: 30), (timer) {
+              if (_sosHoldStart == null || !mounted) {
+                timer.cancel();
+                return;
+              }
+              final elapsed = DateTime.now().difference(_sosHoldStart!).inMilliseconds;
+              final progress = (elapsed / 3000.0).clamp(0.0, 1.0);
+              setState(() => _sosHoldProgress = progress);
+              if (progress >= 1.0) {
+                timer.cancel();
+                setState(() {
+                  _sosHolding = false;
+                  _sosHoldProgress = 0.0;
+                  _sosHoldStart = null;
+                });
+                _triggerEmergencySos();
+              }
+            });
+            setState(() {});
+          },
+          onLongPressEnd: (_) {
+            _sosHoldTimer?.cancel();
+            setState(() {
+              _sosHolding = false;
+              _sosHoldProgress = 0.0;
+              _sosHoldStart = null;
+            });
+          },
+          onLongPressCancel: () {
+            _sosHoldTimer?.cancel();
+            setState(() {
+              _sosHolding = false;
+              _sosHoldProgress = 0.0;
+              _sosHoldStart = null;
+            });
+          },
+          child: SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Progress fill background
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: LinearProgressIndicator(
+                      value: _sosHoldProgress,
+                      backgroundColor: Colors.red.shade100,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        _sosHoldProgress >= 1.0 ? Colors.red.shade900 : Colors.red,
+                      ),
+                      minHeight: 56,
+                    ),
+                  ),
+                ),
+                // Button content
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _sosHoldProgress >= 1.0 ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _sosHoldProgress >= 1.0
+                          ? _t('SOS SENT!')
+                          : _sosHolding
+                              ? '${_t("Hold to trigger SOS")} ${(_sosHoldProgress * 100).toInt()}%'
+                              : _t('Hold 3s for SOS'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // ------- Emergency Broadcast — send SMS to ALL contacts at once -------
@@ -3220,20 +3325,8 @@ out center 100;
                   style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontSize: 14),
                 ),
                 const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _triggerEmergencySos,
-                    icon: const Icon(Icons.warning_amber_rounded),
-                    label: Text(_t('Emergency SOS')),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size.fromHeight(48),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                  ),
-                ),
+                // SOS Hold Button — press and hold for 3 seconds to trigger
+                _buildSosHoldButton(),
               ],
             ),
           ),
@@ -5493,6 +5586,8 @@ class _BloodDonationPageState extends State<BloodDonationPage> {
   String _t(String v) => AppLocalizations(widget.language).text(v);
   List<Map<String, dynamic>> _donors = [];
   bool _loading = true;
+  double? _userLat;
+  double? _userLon;
 
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -5506,23 +5601,57 @@ class _BloodDonationPageState extends State<BloodDonationPage> {
     _loadDonors();
   }
 
+  /// Haversine formula — distance in km between two lat/lon points
+  double _haversineKm(double lat1, double lon1, double lat2, double lon2) {
+    const R = 6371.0; // Earth radius in km
+    final dLat = (lat2 - lat1) * math.pi / 180;
+    final dLon = (lon2 - lon1) * math.pi / 180;
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1 * math.pi / 180) * math.cos(lat2 * math.pi / 180) *
+        math.sin(dLon / 2) * math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return R * c;
+  }
+
   Future<void> _loadDonors() async {
+    // Get user location first
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      _userLat = pos.latitude;
+      _userLon = pos.longitude;
+    } catch (_) {}
+
+    // Load donors
+    List<Map<String, dynamic>> raw = [];
     try {
       final fs = FirestoreService();
       if (fs.isAvailable) {
         final snap = await fs.db.collection('blood_donors').orderBy('createdAt', descending: true).get();
-        setState(() {
-          _donors = snap.docs.map((d) => d.data()).toList();
-          _loading = false;
-        });
-        return;
+        raw = snap.docs.map((d) => d.data()).toList();
       }
     } catch (_) {}
-    // Load from local storage
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getStringList('blood_donors') ?? [];
+    if (raw.isEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getStringList('blood_donors') ?? [];
+      raw = saved.map((s) => jsonDecode(s) as Map<String, dynamic>).toList();
+    }
+
+    // Attach distance to each donor and sort: 5 km first, then by distance
+    for (final d in raw) {
+      final dLat = d['latitude'] as double?;
+      final dLon = d['longitude'] as double?;
+      if (_userLat != null && _userLon != null && dLat != null && dLon != null) {
+        d['_distanceKm'] = _haversineKm(_userLat!, _userLon!, dLat, dLon);
+      } else {
+        d['_distanceKm'] = 9999.0; // unknown — push to end
+      }
+    }
+    raw.sort((a, b) => (a['_distanceKm'] as double).compareTo(b['_distanceKm'] as double));
+
     setState(() {
-      _donors = saved.map((s) => jsonDecode(s) as Map<String, dynamic>).toList();
+      _donors = raw;
       _loading = false;
     });
   }
@@ -5535,11 +5664,23 @@ class _BloodDonationPageState extends State<BloodDonationPage> {
       return;
     }
 
+    // Get location to save with donor record
+    double? lat, lon;
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      lat = pos.latitude;
+      lon = pos.longitude;
+    } catch (_) {}
+
     final donor = {
       'name': _nameController.text.trim(),
       'phone': _phoneController.text.trim(),
       'bloodGroup': _selectedBloodGroup,
       'createdAt': DateTime.now().toIso8601String(),
+      if (lat != null) 'latitude': lat,
+      if (lon != null) 'longitude': lon,
     };
 
     try {
@@ -5574,8 +5715,68 @@ class _BloodDonationPageState extends State<BloodDonationPage> {
     super.dispose();
   }
 
+  Widget _buildDonorCard(Map<String, dynamic> donor) {
+    final dist = donor['_distanceKm'] as double?;
+    final distText = dist != null && dist < 9999
+        ? (dist < 1 ? '${(dist * 1000).toInt()} m away' : '${dist.toStringAsFixed(1)} km away')
+        : '';
+    final isNearby = dist != null && dist <= 5.0;
+    return Card(
+      color: isNearby ? Colors.green.shade50 : null,
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: isNearby ? Colors.green.shade100 : Colors.red.shade50,
+          child: Text(
+            donor['bloodGroup'] ?? '?',
+            style: TextStyle(
+              color: isNearby ? Colors.green.shade800 : Colors.red.shade700,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ),
+        title: Row(
+          children: [
+            Text(donor['name'] ?? 'Unknown'),
+            if (isNearby) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.green,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text('NEARBY', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ],
+        ),
+        subtitle: Text(distText.isNotEmpty ? '${donor['phone'] ?? ''}  •  $distText' : (donor['phone'] ?? '')),
+        trailing: IconButton(
+          icon: const Icon(Icons.phone_rounded, color: Colors.green),
+          onPressed: () async {
+            final phone = donor['phone'];
+            if (phone != null) {
+              final uri = Uri(scheme: 'tel', path: phone);
+              if (await canLaunchUrl(uri)) await launchUrl(uri);
+            }
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final nearbyDonors = _donors.where((d) {
+      final dist = d['_distanceKm'];
+      return dist is double && dist <= 5.0;
+    }).toList();
+    final otherDonors = _donors.where((d) {
+      final dist = d['_distanceKm'];
+      return dist is! double || dist > 5.0;
+    }).toList();
+
     return Scaffold(
       appBar: AppBar(title: Text(_t('Blood Donation'))),
       body: ListView(
@@ -5618,39 +5819,42 @@ class _BloodDonationPageState extends State<BloodDonationPage> {
           ),
           const SizedBox(height: 16),
 
-          // Donor list
-          Text(_t('Available Donors'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
           if (_loading)
             const Center(child: CircularProgressIndicator())
           else if (_donors.isEmpty)
-            const Text('No donors registered yet.')
-          else
-            ..._donors.map(
-              (donor) => Card(
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.red.shade50,
-                    child: Text(
-                      donor['bloodGroup'] ?? '?',
-                      style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.bold, fontSize: 12),
-                    ),
-                  ),
-                  title: Text(donor['name'] ?? 'Unknown'),
-                  subtitle: Text(donor['phone'] ?? ''),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.phone_rounded, color: Colors.green),
-                    onPressed: () async {
-                      final phone = donor['phone'];
-                      if (phone != null) {
-                        final uri = Uri(scheme: 'tel', path: phone);
-                        if (await canLaunchUrl(uri)) await launchUrl(uri);
-                      }
-                    },
-                  ),
-                ),
+            Text(_t('No donors registered yet.'))
+          else ...[
+            // Nearby donors (within 5 km)
+            if (nearbyDonors.isNotEmpty) ...[
+              Row(
+                children: [
+                  Icon(Icons.location_on_rounded, color: Colors.green.shade700, size: 20),
+                  const SizedBox(width: 4),
+                  Text('${_t("Nearby Donors")} (${nearbyDonors.length})',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+                ],
               ),
-            ),
+              const SizedBox(height: 4),
+              Text(_t('Within 5 km of your location'),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              const SizedBox(height: 8),
+              ...nearbyDonors.map((d) => _buildDonorCard(d)),
+              const SizedBox(height: 16),
+            ],
+            // Other donors (beyond 5 km)
+            if (otherDonors.isNotEmpty) ...[
+              Row(
+                children: [
+                  Icon(Icons.people_rounded, color: Colors.blue.shade700, size: 20),
+                  const SizedBox(width: 4),
+                  Text('${_t("Other Donors")} (${otherDonors.length})',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ...otherDonors.map((d) => _buildDonorCard(d)),
+            ],
+          ],
         ],
       ),
     );
