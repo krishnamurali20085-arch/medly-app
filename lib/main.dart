@@ -2587,15 +2587,7 @@ out center 100;
                 ],
               ),
               actions: [
-                // Escalate now button
-                TextButton(
-                  onPressed: () {
-                    userSaidAnswered = false;
-                    Navigator.pop(ctx, false);
-                  },
-                  child: const Text('No Answer — Call Next', style: TextStyle(color: Colors.orange)),
-                ),
-                // Answered button
+                // Only show "They Answered" — auto-escalates on timeout
                 ElevatedButton(
                   onPressed: () {
                     userSaidAnswered = true;
@@ -2604,8 +2596,9 @@ out center 100;
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(48),
                   ),
-                  child: const Text('✅ They Answered'),
+                  child: const Text('✅ They Answered — Stop Escalation'),
                 ),
               ],
             );
